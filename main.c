@@ -19,12 +19,21 @@ typedef enum {
 
 typedef struct {
     HeapItemType type;
+    // When TYPE_WORD, arg is index in heap_indexes
+    // When TYPE_NUM, arg is the parsed number
+    // When TYPE_CALLABLE, arg is pointer to function
     uintptr_t arg;
 } HeapItem;
 
-static char names[DICT_SIZE][NAME_LEN] = {0};
-static unsigned int heap_indexes[DICT_SIZE] = {0};
-static int namecount = 0;
+typedef struct {
+    char name[NAME_LEN];
+    // index at which compiled code that correspond to word starts
+    unsigned int heap_index;
+} DictionaryEntry;
+
+static DictionaryEntry dictionary[DICT_SIZE] = {0};
+// Number of entries in dictionary
+static int entrycount = 0;
 static HeapItem heap[HEAP_SIZE] = {0};
 static int heapptr = 0;
 static int stack[STACK_SIZE] = {0};
@@ -39,12 +48,12 @@ static int aborted = 0;
 static void execute();
 
 // Internal
-static int newname(char *name)
+static DictionaryEntry* newentry(char *name)
 {
-    strncpy(names[namecount], name, NAME_LEN);;
-    heap_indexes[namecount] = heapptr;
-    namecount++;
-    return namecount-1;
+    DictionaryEntry *de = &dictionary[entrycount++];
+    strncpy(de->name, name, NAME_LEN);;
+    de->heap_index = heapptr;
+    return de;
 }
 
 static void heapput(Callable c) {
@@ -93,15 +102,14 @@ static char* readword()
     }
 }
 
-// Returns a heap index
-static int find(char *word)
+static DictionaryEntry* find(char *word)
 {
-    for (int i=0; i<namecount; i++) {
-        if (strncmp(word, names[i], NAME_LEN) == 0) {
-            return heap_indexes[i];
+    for (int i=0; i<entrycount; i++) {
+        if (strncmp(word, dictionary[i].name, NAME_LEN) == 0) {
+            return &dictionary[i];
         }
     }
-    return -1;
+    return NULL;
 }
 
 static void compile(HeapItem *hi, char *word)
@@ -110,21 +118,22 @@ static void compile(HeapItem *hi, char *word)
     if (*word == '\0') { // EOL
         return;
     }
-    int index = find(word);
-    if (index >= 0) {
+    DictionaryEntry *de = find(word);
+    if (de != NULL) {
         hi->type = TYPE_WORD;
-        hi->arg = index;
+        hi->arg = de->heap_index;
     } else {
         // not in dict, maybe a number?
         char *endptr;
         int num = strtol(word, &endptr, 10);
-        if (endptr == lineptr) {
+        if ((endptr == lineptr) || (endptr == lineptr-1)) {
             // whole word read, this means it was a number, we're good.
             hi->type = TYPE_NUM;
             hi->arg = num;
         } else {
             // not a number
             printf("What is %s?\n", word);
+            aborted = 1;
         }
     }
 }
@@ -191,10 +200,24 @@ static void define()
         aborted = 1;
         return;
     }
-    newname(word);
+    // Maybe entry already exists?
+    DictionaryEntry *de = find(word);
+    if (de != NULL) {
+        // We already have a new entry, let's update heap index
+        de->heap_index = heapptr;
+    } else {
+        // nope, new entry
+        de = newentry(word);
+    }
     word = readword();
     while ((*word) && (*word != ';')) {
         compile(&heap[heapptr++], word);
+        if (aborted) {
+            // Something went wrong, let's rollback on new entry
+            entrycount--;
+            heapptr = de->heap_index;
+            return;
+        }
         word = readword();
     }
     heap[heapptr].type = TYPE_STOP;
@@ -203,19 +226,19 @@ static void define()
 
 static void init_dict()
 {
-    newname("hello");
+    newentry("hello");
     heapput(hello);
     heapput(NULL);
-    newname("bye");
+    newentry("bye");
     heapput(bye);
     heapput(NULL);
-    newname("u");
+    newentry("u");
     heapput(u);
     heapput(NULL);
-    newname("execute");
+    newentry("execute");
     heapput(execute);
     heapput(NULL);
-    newname(":");
+    newentry(":");
     heapput(define);
     heapput(NULL);
 }
