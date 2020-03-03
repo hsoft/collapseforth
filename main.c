@@ -64,6 +64,7 @@ typedef struct {
 
 typedef struct {
     uint16_t offset; // offset where it lives.
+    uint16_t next; // set by find() to have a an easy link to next.
     char *name;
     uint16_t prev;
     EntryType type;
@@ -132,7 +133,10 @@ static DictionaryEntry find(char *word)
     DictionaryEntry de;
     // We purposefully omit the "no entry" case: never happens.
     de.prev = lastentryoffset;
+    de.offset = nextoffset;
+    de.next = 0;
     while (de.prev > 0) {
+        de.next = de.offset; // useful for forget()
         readentry(&de, de.prev);
         if (strncmp(word, de.name, NAME_LEN) == 0) {
             return de;
@@ -142,16 +146,11 @@ static DictionaryEntry find(char *word)
     return de;
 }
 
-// Creates and returns a new dictionary entry. If "name" already exists, return
-// this entry with a heap_index pointing to the end of the heap.
-static DictionaryEntry newentry(char *name)
+// Creates and returns a new dictionary entry.
+static DictionaryEntry newentry(char *name, EntryType type)
 {
-    // Maybe entry already exists?
-    DictionaryEntry de = find(name);
-    if (de.offset > 0) {
-        return de;
-    }
-    // nope, new entry
+    DictionaryEntry de;
+    de.type = type;
     de.name = name; // will be copied in writeentry
     de.arg = 0;
     de.prev = lastentryoffset;
@@ -161,8 +160,7 @@ static DictionaryEntry newentry(char *name)
 
 static void nativeentry(char *name, int index)
 {
-    DictionaryEntry de = newentry(name);
-    de.type = TYPE_NATIVE;
+    DictionaryEntry de = newentry(name, TYPE_NATIVE);
     de.arg = index;
     writeentry(&de);
 }
@@ -358,8 +356,7 @@ static void define()
         aborted = 1;
         return;
     }
-    DictionaryEntry de = newentry(word);
-    de.type = TYPE_COMPILED;
+    DictionaryEntry de = newentry(word, TYPE_COMPILED);
     de.arg = heapptr;
     writeentry(&de);
     word = readword();
@@ -415,8 +412,7 @@ static void variable()
         error("No variable name");
         return;
     }
-    DictionaryEntry de = newentry(word);
-    de.type = TYPE_CELL;
+    DictionaryEntry de = newentry(word, TYPE_CELL);
     writeentry(&de);
 }
 
@@ -433,6 +429,30 @@ static void fetch()
     push(readw(addr));
 }
 
+static void forget()
+{
+    char *word = readword();
+    if (!*word) {
+        error("No specified name");
+        return;
+    }
+    DictionaryEntry de = find(word);
+    if (de.offset == 0) {
+        error("Name not found");
+        return;
+    }
+    if (de.next == 0) {
+        // We're the last of the chain
+        lastentryoffset = de.prev;
+        nextoffset = de.offset;
+    } else {
+        // not the last, we have to hook stuff.
+        uint16_t newprev = de.prev;
+        readentry(&de, de.next);
+        de.prev = newprev;
+        writeentry(&de);
+    }
+}
 // Inside Z80
 
 // get pointer to word reg
@@ -508,7 +528,8 @@ static void regw()
 
 // Main loop
 static Callable native_funcs[] = {
-    hello, bye, dot, execute, define, loadf, variable, store, fetch, regr, regw};
+    hello, bye, dot, execute, define, loadf, variable, store, fetch, forget,
+    regr, regw};
 
 static void call_native(int index)
 {
@@ -526,8 +547,9 @@ static void init_dict()
     nativeentry("variable", 6);
     nativeentry("!", 7);
     nativeentry("@", 8);
-    nativeentry("regr", 9);
-    nativeentry("regw", 10);
+    nativeentry("forget", 9);
+    nativeentry("regr", 10);
+    nativeentry("regw", 11);
 }
 
 int main()
