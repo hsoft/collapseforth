@@ -1,26 +1,3 @@
-/* Dictionary
-
-hello           ( -- )      Print "Hello Forth!".
-bye             ( -- )      Quits interpreter.
-.               ( n -- )    Print n in decimal representation.
-execute         ( hi -- )   Execute from heap starting at index hi.
-; w t1 t2 ... ; ( -- )      Define word w and associate with code compiled from
-                            tokens.
-loadf fname     ( -- )      Reads file fname and interprets its contents as if
-                            it was typed directly in the interpreter.
-variable name   ( -- )      Creates a new word pointing to a cell.
-!               ( x a -- )  store value x in cell at address (heap index) a.
-@               ( a -- x )  fetch value x from cell at address (heap index) a.
-?               ( -- )      Same as "@ ."
-
-INSIDE Z80
-
-regr r          ( -- n)     Put value of register r in n. r can be a single
-                            register name (A, B, C) or a pair (BC, DE).
-regw r          ( n -- )    Put n in register r.
-
-*/
-
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdint.h>
@@ -454,11 +431,6 @@ static void init_dict()
     newentry("@");
     heapput(fetch);
     heapstop();
-    newentry("?");
-    heapput(fetch);
-    heapput(dot);
-    heapstop();
-    // Inside z80
     newentry("regr");
     heapput(regr);
     heapstop();
