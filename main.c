@@ -41,7 +41,7 @@ static int stackptr = 0;
 static char *curline, *lineptr;
 // Whether we should continue running the program
 static int running = 1;
-// Wether the parsing of the current line has been aborted
+// Whether the parsing of the current line has been aborted
 static int aborted = 0;
 
 // Foward declarations
@@ -86,20 +86,30 @@ static int pop()
     return stack[--stackptr];
 }
 
+static char* readws()
+{
+    // skip extra whitespace.
+    while ((*lineptr > 0) && (*lineptr <= ' ')) {
+        lineptr++;
+    }
+    return lineptr;
+}
+
 static char* readword()
 {
-    char *s = lineptr;
+    char *s = readws();
     while (1) {
         if (*lineptr == '\0') {
-            return s;
+            break;
         }
         if (*lineptr <= ' ') {
             *lineptr = 0;
             lineptr++;
-            return s;
+            break;
         }
         lineptr++;
     }
+    return s;
 }
 
 static DictionaryEntry* find(char *word)
