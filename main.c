@@ -7,6 +7,24 @@
 #define NAME_LEN 8
 #define STACK_SIZE 500
 #define DICT_SIZE 500
+
+/* About heap
+The heap is where compiled code lives. It's in z80 memory at a precise offset
+and is refered to, in DictionaryEntry, as a memory offset.
+
+Items in the heap are of variable length depending on their type:
+
+- If it's a word reference, the heap item is 2 bytes long: it's a straight
+  dictionary index.
+- If it's a number, it's 3 bytes long: the first byte is 0xfe, followed by the
+  2 bytes of the number.
+- The stop indicator is one byte and is 0xff.
+
+For this reason, the maximum theoretical number of dictionary entries is 0xfdff,
+but it's anyway impossible to fit that many entries in a 64k memory space.
+*/
+
+#define HEAP_ADDR 0x4000
 #define HEAP_SIZE 0x1000
 
 typedef void (*Callable) ();
@@ -29,6 +47,7 @@ typedef enum {
 typedef struct {
     HeapItemType type;
     int arg;
+    int next; // offset of next item
 } HeapItem;
 
 typedef struct {
@@ -41,7 +60,6 @@ typedef struct {
 static DictionaryEntry dictionary[DICT_SIZE] = {0};
 // Number of entries in dictionary
 static int entrycount = 0;
-static HeapItem heap[HEAP_SIZE] = {0};
 static int heapptr = 0;
 static int stack[STACK_SIZE] = {0};
 static int stackptr = 0;
@@ -92,9 +110,44 @@ static void nativeentry(char *name, Callable c)
     de->arg = (long)c;
 }
 
-static void heapstop()
+static HeapItem readheap(int offset)
 {
-    heap[heapptr++].type = TYPE_STOP;
+    HeapItem r;
+    byte val = m->mem[HEAP_ADDR+offset];
+    if (val == 0xff) {
+        r.type = TYPE_STOP;
+    } else if (val == 0xfe) {
+        r.type = TYPE_NUM;
+        r.arg = m->mem[HEAP_ADDR+offset+1];
+        r.arg |= m->mem[HEAP_ADDR+offset+2] << 8;
+        r.next = offset+3;
+    } else {
+        r.type = TYPE_WORD;
+        r.arg = val;
+        r.arg |= m->mem[HEAP_ADDR+offset+1] << 8;
+        r.next = offset+2;
+    }
+    return r;
+}
+
+static void writeheap(HeapItem *hi, int offset)
+{
+    switch (hi->type) {
+        case TYPE_STOP:
+            m->mem[HEAP_ADDR+offset] = 0xff;
+            break;
+        case TYPE_NUM:
+            m->mem[HEAP_ADDR+offset] = 0xfe;
+            m->mem[HEAP_ADDR+offset+1] = hi->arg & 0xff;
+            m->mem[HEAP_ADDR+offset+2] = (hi->arg >> 8) & 0xff;
+            hi->next = offset + 3;
+            break;
+        case TYPE_WORD:
+            m->mem[HEAP_ADDR+offset] = hi->arg & 0xff;
+            m->mem[HEAP_ADDR+offset+1] = (hi->arg >> 8) & 0xff;
+            hi->next = offset + 2;
+            break;
+    }
 }
 
 static void push(int x)
@@ -198,9 +251,9 @@ static void execute() {
     switch (de->type) {
         case TYPE_COMPILED:
             index = de->arg;
-            HeapItem *hi = &heap[index++];
-            while (execstep(hi) != TYPE_STOP) {
-                hi = &heap[index++];
+            HeapItem hi = readheap(index);
+            while (execstep(&hi) != TYPE_STOP) {
+                hi = readheap(hi.next);
             }
             break;
         case TYPE_NATIVE:
@@ -251,9 +304,11 @@ static void define()
     de->type = TYPE_COMPILED;
     word = readword();
     int oldptr = heapptr; // in case we abort
+    HeapItem hi;
     while ((*word) && (*word != ';')) {
-        HeapItem *hi = &heap[heapptr++];
-        compile(hi, word);
+        compile(&hi, word);
+        writeheap(&hi, heapptr);
+        heapptr = hi.next;
         if (aborted) {
             // Something went wrong, let's rollback on new entry
             entrycount--;
@@ -262,7 +317,9 @@ static void define()
         }
         word = readword();
     }
-    heapstop();
+    hi.type = TYPE_STOP;
+    writeheap(&hi, heapptr);
+    heapptr = hi.next;
 }
 
 static void loadf()
@@ -304,30 +361,29 @@ static void variable()
     }
     DictionaryEntry *de = newentry(word);
     de->type = TYPE_CELL;
-    heapstop();
 }
 
 static void store()
 {
     int addr = pop();
     int val = pop();
-    HeapItem *hi = &heap[addr];
-    if (hi->type != TYPE_CELL) {
+    DictionaryEntry *de = &dictionary[addr];
+    if (de->type != TYPE_CELL) {
         error("Not a cell address");
         return;
     }
-    hi->arg = val;
+    de->arg = val;
 }
 
 static void fetch()
 {
     int addr = pop();
-    HeapItem *hi = &heap[addr];
-    if (hi->type != TYPE_CELL) {
+    DictionaryEntry *de = &dictionary[addr];
+    if (de->type != TYPE_CELL) {
         error("Not a cell address");
         return;
     }
-    push(hi->arg);
+    push(de->arg);
 }
 
 // Inside Z80
