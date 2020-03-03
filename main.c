@@ -8,6 +8,10 @@ execute         ( hi -- )   Execute from heap starting at index hi.
                             tokens.
 loadf fname     ( -- )      Reads file fname and interprets its contents as if
                             it was typed directly in the interpreter.
+variable name   ( -- )      Creates a new word pointing to a cell.
+!               ( x a -- )  store value x in cell at address (heap index) a.
+@               ( a -- x )  fetch value x from cell at address (heap index) a.
+?               ( -- )      Same as "@ ."
 
 INSIDE Z80
 
@@ -34,14 +38,17 @@ typedef enum {
     TYPE_WORD,
     TYPE_NUM,
     TYPE_CALLABLE,
+    TYPE_CELL,
     TYPE_STOP
 } HeapItemType;
 
 typedef struct {
+    int index;
     HeapItemType type;
     // When TYPE_WORD, arg is index in heap_indexes
     // When TYPE_NUM, arg is the parsed number
     // When TYPE_CALLABLE, arg is pointer to function
+    // When TYPE_CELL, arg is the cell's value.
     uintptr_t arg;
 } HeapItem;
 
@@ -70,22 +77,46 @@ static Machine *m;
 static void execute();
 
 // Internal
+
+static DictionaryEntry* find(char *word)
+{
+    for (int i=0; i<entrycount; i++) {
+        if (strncmp(word, dictionary[i].name, NAME_LEN) == 0) {
+            return &dictionary[i];
+        }
+    }
+    return NULL;
+}
+
+// Creates and returns a new dictionary entry. If "name" already exists, return
+// this entry with a heap_index pointing to the end of the heap.
 static DictionaryEntry* newentry(char *name)
 {
-    DictionaryEntry *de = &dictionary[entrycount++];
-    strncpy(de->name, name, NAME_LEN);;
+    // Maybe entry already exists?
+    DictionaryEntry *de = find(name);
+    if (de != NULL) {
+        // We already have a new entry, let's update heap index
+        de->heap_index = heapptr;
+        return de;
+    }
+    // nope, new entry
+    de = &dictionary[entrycount++];
+    strncpy(de->name, name, NAME_LEN);
     de->heap_index = heapptr;
     return de;
 }
 
-static void heapput(Callable c) {
-    if (c != NULL) {
-        heap[heapptr].type = TYPE_CALLABLE;
-        heap[heapptr].arg = (uintptr_t)c;
-    } else {
-        heap[heapptr].type = TYPE_STOP;
-    }
+static void heapput(Callable c)
+{
+    heap[heapptr].index = heapptr;
+    heap[heapptr].type = TYPE_CALLABLE;
+    heap[heapptr].arg = (uintptr_t)c;
     heapptr++;
+}
+
+static void heapstop()
+{
+    heap[heapptr++].type = TYPE_STOP;
 }
 
 static void push(int x)
@@ -134,16 +165,6 @@ static char* readword()
     return s;
 }
 
-static DictionaryEntry* find(char *word)
-{
-    for (int i=0; i<entrycount; i++) {
-        if (strncmp(word, dictionary[i].name, NAME_LEN) == 0) {
-            return &dictionary[i];
-        }
-    }
-    return NULL;
-}
-
 static void compile(HeapItem *hi, char *word)
 {
     hi->type = TYPE_STOP;
@@ -182,6 +203,11 @@ static HeapItemType execstep(HeapItem *hi)
         case TYPE_WORD:
             push((int)hi->arg);
             execute();
+            break;
+        case TYPE_CELL:
+            // Executing a cell pushes the cell's *address* onto the stack
+            // rather than its value.
+            push(hi->index);
             break;
     }
     return hi->type;
@@ -239,18 +265,13 @@ static void define()
         aborted = 1;
         return;
     }
-    // Maybe entry already exists?
-    DictionaryEntry *de = find(word);
-    if (de != NULL) {
-        // We already have a new entry, let's update heap index
-        de->heap_index = heapptr;
-    } else {
-        // nope, new entry
-        de = newentry(word);
-    }
+    DictionaryEntry *de = newentry(word);
     word = readword();
     while ((*word) && (*word != ';')) {
-        compile(&heap[heapptr++], word);
+        HeapItem *hi = &heap[heapptr];
+        hi->index = heapptr;
+        heapptr++;
+        compile(hi, word);
         if (aborted) {
             // Something went wrong, let's rollback on new entry
             entrycount--;
@@ -259,8 +280,7 @@ static void define()
         }
         word = readword();
     }
-    heap[heapptr].type = TYPE_STOP;
-    heapptr++;
+    heapstop();
 }
 
 static void loadf()
@@ -291,6 +311,44 @@ static void loadf()
     // restore old curline/lineptr
     curline = oldline;
     lineptr = oldptr;
+}
+
+static void variable()
+{
+    char *word = readword();
+    if (!*word) {
+        error("No variable name");
+        return;
+    }
+    DictionaryEntry *de = newentry(word);
+    HeapItem *hi = &heap[heapptr++];
+    hi->index = de->heap_index;
+    hi->type = TYPE_CELL;
+    hi->arg = 0;
+    heapstop();
+}
+
+static void store()
+{
+    int addr = pop();
+    int val = pop();
+    HeapItem *hi = &heap[addr];
+    if (hi->type != TYPE_CELL) {
+        error("Not a cell address");
+        return;
+    }
+    hi->arg = val;
+}
+
+static void fetch()
+{
+    int addr = pop();
+    HeapItem *hi = &heap[addr];
+    if (hi->type != TYPE_CELL) {
+        error("Not a cell address");
+        return;
+    }
+    push(hi->arg);
 }
 
 // Inside Z80
@@ -371,29 +429,42 @@ static void init_dict()
 {
     newentry("hello");
     heapput(hello);
-    heapput(NULL);
+    heapstop();
     newentry("bye");
     heapput(bye);
-    heapput(NULL);
+    heapstop();
     newentry(".");
     heapput(dot);
-    heapput(NULL);
+    heapstop();
     newentry("execute");
     heapput(execute);
-    heapput(NULL);
+    heapstop();
     newentry(":");
     heapput(define);
-    heapput(NULL);
+    heapstop();
     newentry("loadf");
     heapput(loadf);
-    heapput(NULL);
+    heapstop();
+    newentry("variable");
+    heapput(variable);
+    heapstop();
+    newentry("!");
+    heapput(store);
+    heapstop();
+    newentry("@");
+    heapput(fetch);
+    heapstop();
+    newentry("?");
+    heapput(fetch);
+    heapput(dot);
+    heapstop();
     // Inside z80
     newentry("regr");
     heapput(regr);
-    heapput(NULL);
+    heapstop();
     newentry("regw");
     heapput(regw);
-    heapput(NULL);
+    heapstop();
 
 }
 
