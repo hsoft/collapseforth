@@ -1,3 +1,14 @@
+/* Dictionary
+
+hello           ( -- )      Print "Hello Forth!".
+bye             ( -- )      Quits interpreter.
+.               ( n -- )    Print n in decimal representation.
+execute         ( hi -- )   Execute from heap starting at index hi.
+; w t1 t2 ... ; ( -- )      Define word w and associate with code compiled from
+                            tokens.
+
+*/
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdint.h>
@@ -195,7 +206,7 @@ static void bye()
     aborted = 1;
 }
 
-static void u()
+static void dot()
 {
     int num = pop();
     if (aborted) return;
@@ -242,8 +253,8 @@ static void init_dict()
     newentry("bye");
     heapput(bye);
     heapput(NULL);
-    newentry("u");
-    heapput(u);
+    newentry(".");
+    heapput(dot);
     heapput(NULL);
     newentry("execute");
     heapput(execute);
