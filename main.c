@@ -9,12 +9,19 @@ execute         ( hi -- )   Execute from heap starting at index hi.
 loadf fname     ( -- )      Reads file fname and interprets its contents as if
                             it was typed directly in the interpreter.
 
+INSIDE Z80
+
+regr r          ( -- n)     Put value of register r in n. r can be a single
+                            register name (A, B, C) or a pair (BC, DE).
+regw r          ( n -- )    Put n in register r.
+
 */
 
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdint.h>
 #include <readline/readline.h>
+#include "emul.h"
 
 #define NAME_LEN 8
 #define STACK_SIZE 500
@@ -56,6 +63,8 @@ static char *curline, *lineptr;
 static int running = 1;
 // Whether the parsing of the current line has been aborted
 static int aborted = 0;
+
+static Machine *m;
 
 // Foward declarations
 static void execute();
@@ -284,6 +293,80 @@ static void loadf()
     lineptr = oldptr;
 }
 
+// Inside Z80
+
+// get pointer to word reg
+static ushort* _getwreg(char *name)
+{
+    if (strcmp(name, "AF") == 0) {
+        return &m->cpu.R1.wr.AF;
+    } else if (strcmp(name, "BC") == 0) {
+        return &m->cpu.R1.wr.BC;
+    } else if (strcmp(name, "DE") == 0) {
+        return &m->cpu.R1.wr.DE;
+    } else if (strcmp(name, "HL") == 0) {
+        return &m->cpu.R1.wr.HL;
+    } else if (strcmp(name, "IX") == 0) {
+        return &m->cpu.R1.wr.IX;
+    } else if (strcmp(name, "IY") == 0) {
+        return &m->cpu.R1.wr.IY;
+    } else if (strcmp(name, "SP") == 0) {
+        return &m->cpu.R1.wr.SP;
+    }
+    return NULL;
+}
+
+static byte* _getbreg(char *name)
+{
+    if (name[1] != '\0') {
+        return NULL;
+    }
+    switch (name[0]) {
+        case 'A': return &m->cpu.R1.br.A;
+        case 'F': return &m->cpu.R1.br.F;
+        case 'B': return &m->cpu.R1.br.B;
+        case 'C': return &m->cpu.R1.br.C;
+        case 'D': return &m->cpu.R1.br.D;
+        case 'E': return &m->cpu.R1.br.E;
+        case 'H': return &m->cpu.R1.br.H;
+        case 'L': return &m->cpu.R1.br.L;
+        default: return NULL;
+    }
+}
+
+static void regr()
+{
+    char *name = readword();
+    ushort *w = _getwreg(name);
+    if (w != NULL) {
+        push(*w);
+    } else {
+        byte *b = _getbreg(name);
+        if (b != NULL) {
+            push(*b);
+        } else {
+            error("Invalid register\n");
+        }
+    }
+}
+
+static void regw()
+{
+    char *name = readword();
+    ushort *w = _getwreg(name);
+    if (w != NULL) {
+        *w = pop();
+    } else {
+        byte *b = _getbreg(name);
+        if (b != NULL) {
+            *b = pop();
+        } else {
+            error("Invalid register\n");
+        }
+    }
+}
+
+// Main loop
 static void init_dict()
 {
     newentry("hello");
@@ -304,10 +387,19 @@ static void init_dict()
     newentry("loadf");
     heapput(loadf);
     heapput(NULL);
+    // Inside z80
+    newentry("regr");
+    heapput(regr);
+    heapput(NULL);
+    newentry("regw");
+    heapput(regw);
+    heapput(NULL);
+
 }
 
 int main()
 {
+    m = emul_init();
     init_dict();
     running = 1;
     while (running) {

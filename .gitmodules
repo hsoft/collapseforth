@@ -1,0 +1,3 @@
+[submodule "libz80"]
+	path = libz80
+	url = https://github.com/ggambetta/libz80.git
