@@ -6,7 +6,17 @@
 
 #define NAME_LEN 8
 #define STACK_SIZE 500
-#define DICT_SIZE 500
+/* About dictionary
+
+Structure
+
+- 1b EntryType
+- 8b name
+- 2b arg
+
+*/
+#define DICT_ADDR 0x3000
+#define DICT_SIZE 0x1000
 
 /* About heap
 The heap is where compiled code lives. It's in z80 memory at a precise offset
@@ -32,7 +42,8 @@ typedef void (*Callable) ();
 typedef enum {
     // Entry is a compile list of words. arg points to address in heap.
     TYPE_COMPILED = 0,
-    // Entry links to native code. arg is function pointer.
+    // Entry links to native code. arg is unused, function that will be called
+    // is the function in native_funcs's array, at the entry's index.
     TYPE_NATIVE = 1,
     // Entry is a cell, arg holds cell value.
     TYPE_CELL = 2
@@ -51,13 +62,12 @@ typedef struct {
 } HeapItem;
 
 typedef struct {
-    char name[NAME_LEN];
+    char *name;
     EntryType type;
     int index;
     long arg; // see EntryType comments.
 } DictionaryEntry;
 
-static DictionaryEntry dictionary[DICT_SIZE] = {0};
 // Number of entries in dictionary
 static int entrycount = 0;
 static int heapptr = 0;
@@ -73,41 +83,68 @@ static Machine *m;
 
 // Foward declarations
 static void execute();
+static void call_native(int index);
 
 // Internal
 
-static DictionaryEntry* find(char *word)
+static DictionaryEntry readentry(int index)
 {
+    DictionaryEntry r;
+    int offset = index * 11; // 11 bytes per entry
+    r.type = (EntryType)m->mem[DICT_ADDR+offset];
+    r.name = &m->mem[DICT_ADDR+offset+1];
+    r.index = index;
+    r.arg = m->mem[DICT_ADDR+offset+9];
+    r.arg |= m->mem[DICT_ADDR+offset+10] << 8;
+    return r;
+}
+
+static void writeentry(DictionaryEntry *de)
+{
+    int offset = de->index * 11;
+    m->mem[DICT_ADDR+offset] = de->type;
+    strncpy(&m->mem[DICT_ADDR+offset+1], de->name, NAME_LEN);
+    m->mem[DICT_ADDR+offset+9] = de->arg & 0xff;
+    m->mem[DICT_ADDR+offset+10] = de->arg >> 8;
+    if (de->index >= entrycount) {
+        entrycount = de->index+1;
+    }
+}
+
+static DictionaryEntry find(char *word)
+{
+    DictionaryEntry de;
     for (int i=0; i<entrycount; i++) {
-        if (strncmp(word, dictionary[i].name, NAME_LEN) == 0) {
-            return &dictionary[i];
+        de = readentry(i);
+        if (strncmp(word, de.name, NAME_LEN) == 0) {
+            return de;
         }
     }
-    return NULL;
+    de.index = -1;
+    return de;
 }
 
 // Creates and returns a new dictionary entry. If "name" already exists, return
 // this entry with a heap_index pointing to the end of the heap.
-static DictionaryEntry* newentry(char *name)
+static DictionaryEntry newentry(char *name)
 {
     // Maybe entry already exists?
-    DictionaryEntry *de = find(name);
-    if (de != NULL) {
+    DictionaryEntry de = find(name);
+    if (de.index >= 0) {
         return de;
     }
     // nope, new entry
-    de = &dictionary[entrycount++];
-    de->index = entrycount-1;
-    strncpy(de->name, name, NAME_LEN);
-    de->arg = 0;
+    de.name = name; // will be copied in writeentry
+    de.arg = 0;
+    de.index = entrycount;
     return de;
 }
 
-static void nativeentry(char *name, Callable c)
+static void nativeentry(char *name)
 {
-    DictionaryEntry *de = newentry(name);
-    de->type = TYPE_NATIVE;
-    de->arg = (long)c;
+    DictionaryEntry de = newentry(name);
+    de.type = TYPE_NATIVE;
+    writeentry(&de);
 }
 
 static HeapItem readheap(int offset)
@@ -130,22 +167,22 @@ static HeapItem readheap(int offset)
     return r;
 }
 
-static void writeheap(HeapItem *hi, int offset)
+// write to heapptr and updates it
+static void writeheap(HeapItem *hi)
 {
     switch (hi->type) {
         case TYPE_STOP:
-            m->mem[HEAP_ADDR+offset] = 0xff;
+            m->mem[HEAP_ADDR+heapptr++] = 0xff;
+            heapptr++;
             break;
         case TYPE_NUM:
-            m->mem[HEAP_ADDR+offset] = 0xfe;
-            m->mem[HEAP_ADDR+offset+1] = hi->arg & 0xff;
-            m->mem[HEAP_ADDR+offset+2] = (hi->arg >> 8) & 0xff;
-            hi->next = offset + 3;
+            m->mem[HEAP_ADDR+heapptr++] = 0xfe;
+            m->mem[HEAP_ADDR+heapptr++] = hi->arg & 0xff;
+            m->mem[HEAP_ADDR+heapptr++] = (hi->arg >> 8) & 0xff;
             break;
         case TYPE_WORD:
-            m->mem[HEAP_ADDR+offset] = hi->arg & 0xff;
-            m->mem[HEAP_ADDR+offset+1] = (hi->arg >> 8) & 0xff;
-            hi->next = offset + 2;
+            m->mem[HEAP_ADDR+heapptr++] = hi->arg & 0xff;
+            m->mem[HEAP_ADDR+heapptr++] = (hi->arg >> 8) & 0xff;
             break;
     }
 }
@@ -202,10 +239,10 @@ static void compile(HeapItem *hi, char *word)
     if (*word == '\0') { // EOL
         return;
     }
-    DictionaryEntry *de = find(word);
-    if (de != NULL) {
+    DictionaryEntry de = find(word);
+    if (de.index >= 0) {
         hi->type = TYPE_WORD;
-        hi->arg = de->index;
+        hi->arg = de.index;
     } else {
         // not in dict, maybe a number?
         char *endptr;
@@ -247,17 +284,17 @@ static void error(char *msg)
 static void execute() {
     int index = pop();
     if (aborted) return;
-    DictionaryEntry *de = &dictionary[index];
-    switch (de->type) {
+    DictionaryEntry de = readentry(index);
+    switch (de.type) {
         case TYPE_COMPILED:
-            index = de->arg;
+            index = de.arg;
             HeapItem hi = readheap(index);
             while (execstep(&hi) != TYPE_STOP) {
                 hi = readheap(hi.next);
             }
             break;
         case TYPE_NATIVE:
-            ((Callable)de->arg)();
+            call_native(de.index);
             break;
         case TYPE_CELL:
             push(index);
@@ -300,26 +337,25 @@ static void define()
         aborted = 1;
         return;
     }
-    DictionaryEntry *de = newentry(word);
-    de->type = TYPE_COMPILED;
+    DictionaryEntry de = newentry(word);
+    de.type = TYPE_COMPILED;
+    de.arg = heapptr;
+    writeentry(&de);
     word = readword();
-    int oldptr = heapptr; // in case we abort
     HeapItem hi;
     while ((*word) && (*word != ';')) {
         compile(&hi, word);
-        writeheap(&hi, heapptr);
-        heapptr = hi.next;
+        writeheap(&hi);
         if (aborted) {
             // Something went wrong, let's rollback on new entry
             entrycount--;
-            heapptr = oldptr;
+            heapptr = de.arg;
             return;
         }
         word = readword();
     }
     hi.type = TYPE_STOP;
-    writeheap(&hi, heapptr);
-    heapptr = hi.next;
+    writeheap(&hi);
 }
 
 static void loadf()
@@ -359,31 +395,33 @@ static void variable()
         error("No variable name");
         return;
     }
-    DictionaryEntry *de = newentry(word);
-    de->type = TYPE_CELL;
+    DictionaryEntry de = newentry(word);
+    de.type = TYPE_CELL;
+    writeentry(&de);
 }
 
 static void store()
 {
     int addr = pop();
     int val = pop();
-    DictionaryEntry *de = &dictionary[addr];
-    if (de->type != TYPE_CELL) {
+    DictionaryEntry de = readentry(addr);
+    if (de.type != TYPE_CELL) {
         error("Not a cell address");
         return;
     }
-    de->arg = val;
+    de.arg = val;
+    writeentry(&de);
 }
 
 static void fetch()
 {
     int addr = pop();
-    DictionaryEntry *de = &dictionary[addr];
-    if (de->type != TYPE_CELL) {
+    DictionaryEntry de = readentry(addr);
+    if (de.type != TYPE_CELL) {
         error("Not a cell address");
         return;
     }
-    push(de->arg);
+    push(de.arg);
 }
 
 // Inside Z80
@@ -460,19 +498,28 @@ static void regw()
 }
 
 // Main loop
+static Callable native_funcs[] = {
+    hello, bye, dot, execute, define, loadf, variable, store, fetch, regr, regw};
+
+static void call_native(int index)
+{
+    native_funcs[index]();
+}
+
 static void init_dict()
 {
-    nativeentry("hello", hello);
-    nativeentry("bye", bye);
-    nativeentry(".", dot);
-    nativeentry("execute", execute);
-    nativeentry(":", define);
-    nativeentry("loadf", loadf);
-    nativeentry("variable", variable);
-    nativeentry("!", store);
-    nativeentry("@", fetch);
-    nativeentry("regr", regr);
-    nativeentry("regw", regw);
+    // Same order as in native_funcs
+    nativeentry("hello");
+    nativeentry("bye");
+    nativeentry(".");
+    nativeentry("execute");
+    nativeentry(":");
+    nativeentry("loadf");
+    nativeentry("variable");
+    nativeentry("!");
+    nativeentry("@");
+    nativeentry("regr");
+    nativeentry("regw");
 }
 
 int main()
