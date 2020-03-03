@@ -1,15 +1,31 @@
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdint.h>
 #include <readline/readline.h>
 
+#define NAME_LEN 8
 #define STACK_SIZE 500
 #define DICT_SIZE 500
 #define HEAP_SIZE 0x1000
 
 typedef void (*Callable) ();
-static char *names[DICT_SIZE] = {0};
+
+typedef enum {
+    TYPE_WORD,
+    TYPE_NUM,
+    TYPE_CALLABLE,
+    TYPE_STOP
+} HeapItemType;
+
+typedef struct {
+    HeapItemType type;
+    uintptr_t arg;
+} HeapItem;
+
+static char names[DICT_SIZE][NAME_LEN] = {0};
 static unsigned int heap_indexes[DICT_SIZE] = {0};
-static Callable heap[HEAP_SIZE] = {0};
+static int namecount = 0;
+static HeapItem heap[HEAP_SIZE] = {0};
 static int heapptr = 0;
 static int stack[STACK_SIZE] = {0};
 static int stackptr = 0;
@@ -19,7 +35,28 @@ static int running = 1;
 // Wether the parsing of the current line has been aborted
 static int aborted = 0;
 
+// Foward declarations
+static void execute();
+
 // Internal
+static int newname(char *name)
+{
+    strncpy(names[namecount], name, NAME_LEN);;
+    heap_indexes[namecount] = heapptr;
+    namecount++;
+    return namecount-1;
+}
+
+static void heapput(Callable c) {
+    if (c != NULL) {
+        heap[heapptr].type = TYPE_CALLABLE;
+        heap[heapptr].arg = (uintptr_t)c;
+    } else {
+        heap[heapptr].type = TYPE_STOP;
+    }
+    heapptr++;
+}
+
 static void push(int x)
 {
     if (stackptr == STACK_SIZE) {
@@ -38,10 +75,6 @@ static int pop()
         return -1;
     }
     return stack[--stackptr];
-}
-
-static void heapput(Callable c) {
-    heap[heapptr++] = c;
 }
 
 static char* readword()
@@ -63,48 +96,72 @@ static char* readword()
 // Returns a heap index
 static int find(char *word)
 {
-    for (int i=0; i<DICT_SIZE; i++) {
-        if (names[i] == NULL) break;
-        if (strcmp(word, names[i]) == 0) {
+    for (int i=0; i<namecount; i++) {
+        if (strncmp(word, names[i], NAME_LEN) == 0) {
             return heap_indexes[i];
         }
     }
     return -1;
 }
 
-// Callable
-static void execute() {
-    int index = pop();
-    if (aborted) return;
-    Callable c = heap[index++];
-    while (c != NULL) {
-        c();
-        c = heap[index++];
-    }
-}
-
-static void interpret() {
-    char *word = readword();
+static void compile(HeapItem *hi, char *word)
+{
+    hi->type = TYPE_STOP;
     if (*word == '\0') { // EOL
-        aborted = 1;
         return;
     }
     int index = find(word);
     if (index >= 0) {
-        push(index);
-        execute();
+        hi->type = TYPE_WORD;
+        hi->arg = index;
     } else {
         // not in dict, maybe a number?
         char *endptr;
         int num = strtol(word, &endptr, 10);
         if (endptr == lineptr) {
             // whole word read, this means it was a number, we're good.
-            push(num);
+            hi->type = TYPE_NUM;
+            hi->arg = num;
         } else {
             // not a number
-            aborted = 1;
             printf("What is %s?\n", word);
         }
+    }
+}
+
+static HeapItemType execstep(HeapItem *hi)
+{
+    switch (hi->type) {
+        case TYPE_CALLABLE:
+            ((Callable)hi->arg)();
+            break;
+        case TYPE_NUM:
+            push((int)hi->arg);
+            break;
+        case TYPE_WORD:
+            push((int)hi->arg);
+            execute();
+            break;
+    }
+    return hi->type;
+}
+
+// Callable
+static void execute() {
+    int index = pop();
+    if (aborted) return;
+    HeapItem hi = heap[index++];
+    while (execstep(&hi) != TYPE_STOP) {
+        hi = heap[index++];
+    }
+}
+
+static void interpret() {
+    char *word = readword();
+    HeapItem hi;
+    compile(&hi, word);
+    if (execstep(&hi) == TYPE_STOP) {
+        aborted = 1;
     }
 }
 
@@ -126,25 +183,41 @@ static void u()
     printf("%d\n", num);
 }
 
+static void define()
+{
+    char *word = readword();
+    if (!*word) {
+        printf("No define name");
+        aborted = 1;
+        return;
+    }
+    newname(word);
+    word = readword();
+    while ((*word) && (*word != ';')) {
+        compile(&heap[heapptr++], word);
+        word = readword();
+    }
+    heap[heapptr].type = TYPE_STOP;
+    heapptr++;
+}
+
 static void init_dict()
 {
-    names[0] = "hello";
-    heap_indexes[0] = heapptr;
+    newname("hello");
     heapput(hello);
     heapput(NULL);
-    names[1] = "bye";
-    heap_indexes[1] = heapptr;
+    newname("bye");
     heapput(bye);
     heapput(NULL);
-    names[2] = "u";
-    heap_indexes[2] = heapptr;
+    newname("u");
     heapput(u);
     heapput(NULL);
-    names[3] = "execute";
-    heap_indexes[3] = heapptr;
+    newname("execute");
     heapput(execute);
     heapput(NULL);
-    names[4] = NULL;
+    newname(":");
+    heapput(define);
+    heapput(NULL);
 }
 
 int main()
