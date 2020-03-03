@@ -6,6 +6,8 @@ bye             ( -- )      Quits interpreter.
 execute         ( hi -- )   Execute from heap starting at index hi.
 ; w t1 t2 ... ; ( -- )      Define word w and associate with code compiled from
                             tokens.
+loadf fname     ( -- )      Reads file fname and interprets its contents as if
+                            it was typed directly in the interpreter.
 
 */
 
@@ -176,6 +178,13 @@ static HeapItemType execstep(HeapItem *hi)
     return hi->type;
 }
 
+static void error(char *msg)
+{
+    printf("%s\n", msg);
+    aborted = 1;
+    return;
+}
+
 // Callable
 static void execute() {
     int index = pop();
@@ -245,6 +254,36 @@ static void define()
     heapptr++;
 }
 
+static void loadf()
+{
+    char *oldline = curline;
+    char *oldptr = lineptr;
+    char *fname = readword();
+    ssize_t read;
+    ssize_t len = 0;
+
+    if (!fname) {
+        error("Missing filename");
+        return;
+    }
+    FILE *fp = fopen(fname, "r");
+    if (!fp) {
+        error("Can't open file");
+        return;
+    }
+
+    curline = NULL;
+    while ((read = getline(&curline, &len, fp)) != -1) {
+        lineptr = curline;
+        while (running && (!aborted)) interpret();
+    }
+    free(curline);
+    fclose(fp);
+    // restore old curline/lineptr
+    curline = oldline;
+    lineptr = oldptr;
+}
+
 static void init_dict()
 {
     newentry("hello");
@@ -261,6 +300,9 @@ static void init_dict()
     heapput(NULL);
     newentry(":");
     heapput(define);
+    heapput(NULL);
+    newentry("loadf");
+    heapput(loadf);
     heapput(NULL);
 }
 
