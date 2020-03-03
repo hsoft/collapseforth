@@ -12,27 +12,30 @@
 typedef void (*Callable) ();
 
 typedef enum {
+    // Entry is a compile list of words. arg points to address in heap.
+    TYPE_COMPILED = 0,
+    // Entry links to native code. arg is function pointer.
+    TYPE_NATIVE = 1,
+    // Entry is a cell, arg holds cell value.
+    TYPE_CELL = 2
+} EntryType;
+
+typedef enum {
     TYPE_WORD,
     TYPE_NUM,
-    TYPE_CALLABLE,
-    TYPE_CELL,
     TYPE_STOP
 } HeapItemType;
 
 typedef struct {
-    int index;
     HeapItemType type;
-    // When TYPE_WORD, arg is index in heap_indexes
-    // When TYPE_NUM, arg is the parsed number
-    // When TYPE_CALLABLE, arg is pointer to function
-    // When TYPE_CELL, arg is the cell's value.
-    uintptr_t arg;
+    int arg;
 } HeapItem;
 
 typedef struct {
     char name[NAME_LEN];
-    // index at which compiled code that correspond to word starts
-    unsigned int heap_index;
+    EntryType type;
+    int index;
+    long arg; // see EntryType comments.
 } DictionaryEntry;
 
 static DictionaryEntry dictionary[DICT_SIZE] = {0};
@@ -72,23 +75,21 @@ static DictionaryEntry* newentry(char *name)
     // Maybe entry already exists?
     DictionaryEntry *de = find(name);
     if (de != NULL) {
-        // We already have a new entry, let's update heap index
-        de->heap_index = heapptr;
         return de;
     }
     // nope, new entry
     de = &dictionary[entrycount++];
+    de->index = entrycount-1;
     strncpy(de->name, name, NAME_LEN);
-    de->heap_index = heapptr;
+    de->arg = 0;
     return de;
 }
 
-static void heapput(Callable c)
+static void nativeentry(char *name, Callable c)
 {
-    heap[heapptr].index = heapptr;
-    heap[heapptr].type = TYPE_CALLABLE;
-    heap[heapptr].arg = (uintptr_t)c;
-    heapptr++;
+    DictionaryEntry *de = newentry(name);
+    de->type = TYPE_NATIVE;
+    de->arg = (long)c;
 }
 
 static void heapstop()
@@ -151,7 +152,7 @@ static void compile(HeapItem *hi, char *word)
     DictionaryEntry *de = find(word);
     if (de != NULL) {
         hi->type = TYPE_WORD;
-        hi->arg = de->heap_index;
+        hi->arg = de->index;
     } else {
         // not in dict, maybe a number?
         char *endptr;
@@ -171,20 +172,12 @@ static void compile(HeapItem *hi, char *word)
 static HeapItemType execstep(HeapItem *hi)
 {
     switch (hi->type) {
-        case TYPE_CALLABLE:
-            ((Callable)hi->arg)();
-            break;
         case TYPE_NUM:
-            push((int)hi->arg);
+            push(hi->arg);
             break;
         case TYPE_WORD:
-            push((int)hi->arg);
+            push(hi->arg);
             execute();
-            break;
-        case TYPE_CELL:
-            // Executing a cell pushes the cell's *address* onto the stack
-            // rather than its value.
-            push(hi->index);
             break;
     }
     return hi->type;
@@ -201,9 +194,21 @@ static void error(char *msg)
 static void execute() {
     int index = pop();
     if (aborted) return;
-    HeapItem hi = heap[index++];
-    while (execstep(&hi) != TYPE_STOP) {
-        hi = heap[index++];
+    DictionaryEntry *de = &dictionary[index];
+    switch (de->type) {
+        case TYPE_COMPILED:
+            index = de->arg;
+            HeapItem *hi = &heap[index++];
+            while (execstep(hi) != TYPE_STOP) {
+                hi = &heap[index++];
+            }
+            break;
+        case TYPE_NATIVE:
+            ((Callable)de->arg)();
+            break;
+        case TYPE_CELL:
+            push(index);
+            break;
     }
 }
 
@@ -243,16 +248,16 @@ static void define()
         return;
     }
     DictionaryEntry *de = newentry(word);
+    de->type = TYPE_COMPILED;
     word = readword();
+    int oldptr = heapptr; // in case we abort
     while ((*word) && (*word != ';')) {
-        HeapItem *hi = &heap[heapptr];
-        hi->index = heapptr;
-        heapptr++;
+        HeapItem *hi = &heap[heapptr++];
         compile(hi, word);
         if (aborted) {
             // Something went wrong, let's rollback on new entry
             entrycount--;
-            heapptr = de->heap_index;
+            heapptr = oldptr;
             return;
         }
         word = readword();
@@ -298,10 +303,7 @@ static void variable()
         return;
     }
     DictionaryEntry *de = newentry(word);
-    HeapItem *hi = &heap[heapptr++];
-    hi->index = de->heap_index;
-    hi->type = TYPE_CELL;
-    hi->arg = 0;
+    de->type = TYPE_CELL;
     heapstop();
 }
 
@@ -404,40 +406,17 @@ static void regw()
 // Main loop
 static void init_dict()
 {
-    newentry("hello");
-    heapput(hello);
-    heapstop();
-    newentry("bye");
-    heapput(bye);
-    heapstop();
-    newentry(".");
-    heapput(dot);
-    heapstop();
-    newentry("execute");
-    heapput(execute);
-    heapstop();
-    newentry(":");
-    heapput(define);
-    heapstop();
-    newentry("loadf");
-    heapput(loadf);
-    heapstop();
-    newentry("variable");
-    heapput(variable);
-    heapstop();
-    newentry("!");
-    heapput(store);
-    heapstop();
-    newentry("@");
-    heapput(fetch);
-    heapstop();
-    newentry("regr");
-    heapput(regr);
-    heapstop();
-    newentry("regw");
-    heapput(regw);
-    heapstop();
-
+    nativeentry("hello", hello);
+    nativeentry("bye", bye);
+    nativeentry(".", dot);
+    nativeentry("execute", execute);
+    nativeentry(":", define);
+    nativeentry("loadf", loadf);
+    nativeentry("variable", variable);
+    nativeentry("!", store);
+    nativeentry("@", fetch);
+    nativeentry("regr", regr);
+    nativeentry("regw", regw);
 }
 
 int main()
