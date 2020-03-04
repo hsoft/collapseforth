@@ -14,8 +14,10 @@ execute         ( hi -- )   Execute from heap starting at index hi.
                             tokens.
 loadf fname     ( -- )      Reads file fname and interprets its contents as if
                             it was typed directly in the interpreter.
-!               ( x a -- )  store value x in cell at address (heap index) a.
-@               ( a -- x )  fetch value x from cell at address (heap index) a.
+!               ( x a -- )  store value x in cell at address a.
+@               ( a -- x )  fetch value x from cell at address a.
+C!              ( x a -- )  store byte value x in cell at address a.
+C@              ( a -- x )  fetch value x from cell at address a.
 forget x        ( -- )      Remove latest entry named x from dict.
 create x        ( -- )      Create entry named x, header only
 allot           ( n -- )    Increase HERE by n.
@@ -29,4 +31,6 @@ regw r          ( n -- )    Put n in register r.
 variable x      ( -- )      Creates a new word x pointing to a 2 bytes cell.
 ?               ( -- )      Same as "@ ."
 ,               ( n -- )    Grow latest entry by 2 bytes and set those bytes to
+                            value n.
+C,              ( n -- )    Grow latest entry by 1 byte and set that byte to
                             value n.

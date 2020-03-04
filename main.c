@@ -422,6 +422,19 @@ static void fetch()
     push(readw(addr));
 }
 
+static void storec()
+{
+    int addr = pop();
+    int val = pop();
+    m->mem[addr] = val & 0xff;
+}
+
+static void fetchc()
+{
+    int addr = pop();
+    push(m->mem[addr]);
+}
+
 static void forget()
 {
     char *word = readword();
@@ -542,8 +555,8 @@ static void regw()
 
 // Main loop
 static Callable native_funcs[] = {
-    hello, bye, dot, execute, define, loadf, store, fetch, forget, create,
-    allot, here, regr, regw};
+    hello, bye, dot, execute, define, loadf, store, fetch, storec, fetchc,
+    forget, create, allot, here, regr, regw};
 
 static void call_native(int index)
 {
@@ -560,12 +573,14 @@ static void init_dict()
     nativeentry("loadf", 5);
     nativeentry("!", 6);
     nativeentry("@", 7);
-    nativeentry("forget", 8);
-    nativeentry("create", 9);
-    nativeentry("allot", 10);
-    nativeentry("here", 11);
-    nativeentry("regr", 12);
-    nativeentry("regw", 13);
+    nativeentry("C!", 8);
+    nativeentry("C@", 9);
+    nativeentry("forget", 10);
+    nativeentry("create", 11);
+    nativeentry("allot", 11);
+    nativeentry("here", 12);
+    nativeentry("regr", 13);
+    nativeentry("regw", 14);
 }
 
 int main()

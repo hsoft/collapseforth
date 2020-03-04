@@ -10,6 +10,7 @@ void init_core_defs()
         ": variable create 2 allot ;",
         ": ? @ . ;",
         ": , here ! 2 allot ;",
+        ": C, here C! 1 allot ;",
     };
     for (int i=0; i<(sizeof(lines)/sizeof(char*)); i++) {
         interpret_line(lines[i]);
