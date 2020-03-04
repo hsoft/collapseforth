@@ -340,9 +340,9 @@ static void interpret() {
     }
 }
 
-static void hello()
+static void emit()
 {
-    printf("Hello Forth!\n");
+    putchar(pop() & 0xff);
 }
 
 static void bye()
@@ -555,7 +555,7 @@ static void regw()
 
 // Main loop
 static Callable native_funcs[] = {
-    hello, bye, dot, execute, define, loadf, store, fetch, storec, fetchc,
+    emit, bye, dot, execute, define, loadf, store, fetch, storec, fetchc,
     forget, create, allot, here, regr, regw};
 
 static void call_native(int index)
@@ -565,7 +565,7 @@ static void call_native(int index)
 
 static void init_dict()
 {
-    nativeentry("hello", 0);
+    nativeentry("emit", 0);
     nativeentry("bye", 1);
     nativeentry(".", 2);
     nativeentry("execute", 3);
