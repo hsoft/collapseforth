@@ -6,7 +6,6 @@
 #include "core.h"
 
 #define NAME_LEN 8
-#define STACK_SIZE 500
 /* About dictionary
 
 Structure
@@ -79,8 +78,6 @@ typedef struct {
 static uint16_t lastentryoffset = 0;
 // Offset where we will create our next entry
 static uint16_t nextoffset = DICT_ADDR;
-static int stack[STACK_SIZE] = {0};
-static int stackptr = 0;
 static char *curline, *lineptr;
 // Whether we should continue running the program
 static int running = 1;
@@ -200,24 +197,22 @@ static void writeheap(HeapItem *hi)
     }
 }
 
-static void push(int x)
+static void push(uint16_t x)
 {
-    if (stackptr == STACK_SIZE) {
-        aborted = 1;
-        printf("Stack overflow\n");
-        return;
-    }
-    stack[stackptr++] = x;
+    m->cpu.R1.wr.SP -= 2;
+    writew(m->cpu.R1.wr.SP, x);
 }
 
-static int pop()
+static uint16_t pop()
 {
-    if (!stackptr) {
+    if (m->cpu.R1.wr.SP == 0xffff) {
         aborted = 1;
         printf("Stack underflow\n");
-        return -1;
+        return 0;
     }
-    return stack[--stackptr];
+    uint16_t r = readw(m->cpu.R1.wr.SP);
+    m->cpu.R1.wr.SP += 2;
+    return r;
 }
 
 static char* readws()
@@ -334,7 +329,7 @@ static void execute() {
             call_native(de.arg);
             break;
         case TYPE_CELL:
-            push(offset+11); // +11 == arg field
+            push(offset+ENTRY_FIELD_DATA);
             break;
     }
 }
@@ -671,6 +666,7 @@ static void init_dict()
 int main(int argc, char *argv[])
 {
     m = emul_init();
+    m->cpu.R1.wr.SP = 0xffff;
     init_dict();
     running = 1;
     init_core_defs();
