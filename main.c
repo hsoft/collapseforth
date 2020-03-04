@@ -668,12 +668,19 @@ static void init_dict()
     nativeentry(".x", 25);
 }
 
-int main()
+int main(int argc, char *argv[])
 {
     m = emul_init();
     init_dict();
     running = 1;
     init_core_defs();
+    if (argc > 1) {
+        // We have arguments. Interpret then and exit
+        for (int i=1; i<argc; i++) {
+            interpret_line(argv[i]);
+        }
+        return 0;
+    }
     while (running) {
         aborted = 0;
         curline = readline("? ");
