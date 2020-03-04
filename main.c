@@ -68,7 +68,7 @@ typedef struct {
     char *name;
     uint16_t prev;
     EntryType type;
-    long arg; // see EntryType comments.
+    uint16_t arg; // see EntryType comments.
 } DictionaryEntry;
 
 // Offset of last entry in dictionary
@@ -114,18 +114,10 @@ static void readentry(DictionaryEntry *de, uint16_t offset)
     de->arg = readw(offset+11);
 }
 
-static void writeentry(DictionaryEntry *de)
+static void writeentryarg(DictionaryEntry *de)
 {
     int offset = de->offset;
-    m->mem[offset] = de->type;
-    strncpy(&m->mem[offset+1], de->name, NAME_LEN);
-    writew(offset+9, de->prev);
     writew(offset+11, de->arg);
-    if (offset == nextoffset) {
-        // We're writing at the end of the dict
-        lastentryoffset = offset;
-        nextoffset = offset + 13;
-    }
 }
 
 static DictionaryEntry find(char *word)
@@ -146,15 +138,21 @@ static DictionaryEntry find(char *word)
     return de;
 }
 
-// Creates and returns a new dictionary entry.
+// Creates and returns a new dictionary entry. That entry has its header written
+// to memory.
 static DictionaryEntry newentry(char *name, EntryType type)
 {
     DictionaryEntry de;
     de.type = type;
-    de.name = name; // will be copied in writeentry
+    de.name = name;
     de.arg = 0;
     de.prev = lastentryoffset;
     de.offset = nextoffset;
+    m->mem[de.offset] = de.type;
+    strncpy(&m->mem[de.offset+1], de.name, NAME_LEN);
+    writew(de.offset+9, de.prev);
+    lastentryoffset = de.offset;
+    nextoffset = de.offset + 13;
     return de;
 }
 
@@ -162,7 +160,7 @@ static void nativeentry(char *name, int index)
 {
     DictionaryEntry de = newentry(name, TYPE_NATIVE);
     de.arg = index;
-    writeentry(&de);
+    writeentryarg(&de);
 }
 
 static HeapItem readheap(int offset)
@@ -358,7 +356,7 @@ static void define()
     }
     DictionaryEntry de = newentry(word, TYPE_COMPILED);
     de.arg = heapptr;
-    writeentry(&de);
+    writeentryarg(&de);
     word = readword();
     HeapItem hi;
     while ((*word) && (*word != ';')) {
@@ -412,8 +410,7 @@ static void variable()
         error("No variable name");
         return;
     }
-    DictionaryEntry de = newentry(word, TYPE_CELL);
-    writeentry(&de);
+    newentry(word, TYPE_CELL);
 }
 
 static void store()
@@ -441,16 +438,15 @@ static void forget()
         error("Name not found");
         return;
     }
-    if (de.next == 0) {
+    if (de.offset == lastentryoffset) {
         // We're the last of the chain
         lastentryoffset = de.prev;
         nextoffset = de.offset;
     } else {
         // not the last, we have to hook stuff.
-        uint16_t newprev = de.prev;
-        readentry(&de, de.next);
-        de.prev = newprev;
-        writeentry(&de);
+        // de.next is the offset of the next entry. We need to write "de.prev"
+        // in that entry's "prev" offset, which is offset+9
+        writew(de.next+9, de.prev);
     }
 }
 // Inside Z80
