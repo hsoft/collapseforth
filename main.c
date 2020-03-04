@@ -577,10 +577,10 @@ static void init_dict()
     nativeentry("C@", 9);
     nativeentry("forget", 10);
     nativeentry("create", 11);
-    nativeentry("allot", 11);
-    nativeentry("here", 12);
-    nativeentry("regr", 13);
-    nativeentry("regw", 14);
+    nativeentry("allot", 12);
+    nativeentry("here", 13);
+    nativeentry("regr", 14);
+    nativeentry("regw", 15);
 }
 
 int main()

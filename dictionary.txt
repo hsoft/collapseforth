@@ -9,7 +9,7 @@ HERE            Memory offset pointing to the end of the dictionnary. Creating
 hello           ( -- )      Print "Hello Forth!".
 bye             ( -- )      Quits interpreter.
 .               ( n -- )    Print n in decimal representation.
-execute         ( hi -- )   Execute from heap starting at index hi.
+execute         ( hi -- )   Execute from heap starting at offset hi.
 : w t1 t2 ... ; ( -- )      Define word w and associate with code compiled from
                             tokens.
 loadf fname     ( -- )      Reads file fname and interprets its contents as if
