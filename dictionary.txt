@@ -6,31 +6,37 @@ HERE            Memory offset pointing to the end of the dictionnary. Creating
 
 *** Builtin words ***
 
-emit            ( c -- )    Emit character c to console.
-bye             ( -- )      Quits interpreter.
-.               ( n -- )    Print n in decimal representation.
-execute         ( hi -- )   Execute from heap starting at offset hi.
-: w t1 t2 ... ; ( -- )      Define word w and associate with code compiled from
-                            tokens.
-loadf fname     ( -- )      Reads file fname and interprets its contents as if
-                            it was typed directly in the interpreter.
-!               ( x a -- )  store value x in cell at address a.
-@               ( a -- x )  fetch value x from cell at address a.
-C!              ( x a -- )  store byte value x in cell at address a.
-C@              ( a -- x )  fetch value x from cell at address a.
-forget x        ( -- )      Remove latest entry named x from dict.
-create x        ( -- )      Create entry named x, header only
-allot           ( n -- )    Increase HERE by n.
-here            ( -- n )    Push HERE to stack.
-regr r          ( -- n)     Put value of register r in n. r can be a single
-                            register name (A, B, C) or a pair (BC, DE).
-regw r          ( n -- )    Put n in register r.
+emit            ( c -- )        Emit character c to console.
+bye             ( -- )          Quits interpreter.
+.               ( n -- )        Print n in decimal representation.
+execute         ( hi -- )       Execute from heap starting at offset hi.
+: w t1 t2 ... ; ( -- )          Define word w and associate with code compiled
+                                from tokens.
+loadf fname     ( -- )          Reads file fname and interprets its contents as
+                                if it was typed directly in the interpreter.
+!               ( x a -- )      store value x in cell at address a.
+@               ( a -- x )      fetch value x from cell at address a.
+C!              ( x a -- )      store byte value x in cell at address a.
+C@              ( a -- x )      fetch value x from cell at address a.
+forget x        ( -- )          Remove latest entry named x from dict.
+create x        ( -- )          Create entry named x, header only
+allot           ( n -- )        Increase HERE by n.
+here            ( -- n )        Push HERE to stack.
+regr r          ( -- n)         Put value of register r in n. r can be a single
+                                register name (A, B, C) or a pair (BC, DE).
+regw r          ( n -- )        Put n in register r.
++               ( x y -- z )    x + y => z
+-               ( x y -- z )    x - y => z
+*               ( x y -- z )    x * y => z
+/               ( x y -- z )    x / y => z
+lshift          ( x y -- z )    left shift of x by y places => z
+rshift          ( x y -- z )    right shift of x by y places => z
 
 *** In core ***
 
-variable x      ( -- )      Creates a new word x pointing to a 2 bytes cell.
-?               ( -- )      Same as "@ ."
-,               ( n -- )    Grow latest entry by 2 bytes and set those bytes to
-                            value n.
-C,              ( n -- )    Grow latest entry by 1 byte and set that byte to
-                            value n.
+variable x      ( -- )          Creates a new word x pointing to a 2 bytes cell.
+?               ( -- )          Same as "@ ."
+,               ( n -- )        Grow latest entry by 2 bytes and set those bytes
+                                to value n.
+C,              ( n -- )        Grow latest entry by 1 byte and set that byte to
+                                value n.

@@ -467,7 +467,26 @@ static void forget()
     }
 }
 
-// Inside Z80
+static void create()
+{
+    char *word = readword();
+    if (!*word) {
+        error("Name needed");
+        return;
+    }
+    _create(word, TYPE_CELL);
+    nextoffset -= 2; // The create word doesn't allot any data.
+}
+
+static void allot()
+{
+    nextoffset += pop();
+}
+
+static void here()
+{
+    push(nextoffset);
+}
 
 // get pointer to word reg
 static ushort* _getwreg(char *name)
@@ -508,27 +527,6 @@ static byte* _getbreg(char *name)
     }
 }
 
-static void create()
-{
-    char *word = readword();
-    if (!*word) {
-        error("Name needed");
-        return;
-    }
-    _create(word, TYPE_CELL);
-    nextoffset -= 2; // The create word doesn't allot any data.
-}
-
-static void allot()
-{
-    nextoffset += pop();
-}
-
-static void here()
-{
-    push(nextoffset);
-}
-
 static void regr()
 {
     char *name = readword();
@@ -561,10 +559,67 @@ static void regw()
     }
 }
 
+static void plus()
+{
+    uint16_t n2 = pop();
+    uint16_t n1 = pop();
+    push(n1 + n2);
+}
+
+static void minus()
+{
+    uint16_t n2 = pop();
+    uint16_t n1 = pop();
+    push(n1 - n2);
+}
+
+static void mult()
+{
+    uint16_t n2 = pop();
+    uint16_t n1 = pop();
+    push(n1 * n2);
+}
+
+static void div_()
+{
+    uint16_t n2 = pop();
+    uint16_t n1 = pop();
+    push(n1 / n2);
+}
+
+static void and_()
+{
+    uint16_t n2 = pop();
+    uint16_t n1 = pop();
+    push(n1 & n2);
+}
+
+static void or_()
+{
+    uint16_t n2 = pop();
+    uint16_t n1 = pop();
+    push(n1 | n2);
+}
+
+static void lshift()
+{
+    uint16_t x = pop();
+    uint16_t n = pop();
+    push(n << x);
+}
+
+static void rshift()
+{
+    uint16_t x = pop();
+    uint16_t n = pop();
+    push(n >> x);
+}
+
 // Main loop
 static Callable native_funcs[] = {
     emit, bye, dot, execute, define, loadf, store, fetch, storec, fetchc,
-    forget, create, allot, here, regr, regw};
+    forget, create, allot, here, regr, regw, plus, minus, mult, div_, and_, or_,
+    lshift, rshift};
 
 static void call_native(int index)
 {
@@ -589,6 +644,14 @@ static void init_dict()
     nativeentry("here", 13);
     nativeentry("regr", 14);
     nativeentry("regw", 15);
+    nativeentry("+", 16);
+    nativeentry("-", 17);
+    nativeentry("*", 18);
+    nativeentry("/", 19);
+    nativeentry("and", 20);
+    nativeentry("or", 21);
+    nativeentry("lshift", 22);
+    nativeentry("rshift", 23);
 }
 
 int main()
