@@ -13,13 +13,18 @@ Structure
 - 1b EntryType
 - 8b name
 - 2b prev entry offset, 0 for none
-- 2b arg
+- 2b+ data
 
 */
 #define DICT_ADDR 0x3000
 #define DICT_SIZE 0x1000
+// offsets for each field
+#define ENTRY_FIELD_TYPE 0
+#define ENTRY_FIELD_NAME 1
+#define ENTRY_FIELD_PREV 9
+#define ENTRY_FIELD_DATA 11
 
-/* About heap
+/* About heap item (misnomer for now...)
 The heap is where compiled code lives. It's in z80 memory at a precise offset
 and is refered to, in DictionaryEntry, as a memory offset.
 
@@ -35,8 +40,6 @@ For this reason, the maximum theoretical number of dictionary entries is 0xfdff,
 but it's anyway impossible to fit that many entries in a 64k memory space.
 */
 
-#define HEAP_ADDR 0x4000
-#define HEAP_SIZE 0x1000
 
 typedef void (*Callable) ();
 
@@ -73,8 +76,8 @@ typedef struct {
 
 // Offset of last entry in dictionary
 static uint16_t lastentryoffset = 0;
+// Offset where we will create our next entry
 static uint16_t nextoffset = DICT_ADDR;
-static int heapptr = 0;
 static int stack[STACK_SIZE] = {0};
 static int stackptr = 0;
 static char *curline, *lineptr;
@@ -108,16 +111,10 @@ static void writew(uint16_t offset, uint16_t dest)
 static void readentry(DictionaryEntry *de, uint16_t offset)
 {
     de->offset = offset;
-    de->type = (EntryType)m->mem[offset];
-    de->name = &m->mem[offset+1];
-    de->prev = readw(offset+9);
-    de->arg = readw(offset+11);
-}
-
-static void writeentryarg(DictionaryEntry *de)
-{
-    int offset = de->offset;
-    writew(offset+11, de->arg);
+    de->type = (EntryType)m->mem[offset+ENTRY_FIELD_TYPE];
+    de->name = &m->mem[offset+ENTRY_FIELD_NAME];
+    de->prev = readw(offset+ENTRY_FIELD_PREV);
+    de->arg = readw(offset+ENTRY_FIELD_DATA);
 }
 
 static DictionaryEntry find(char *word)
@@ -140,7 +137,7 @@ static DictionaryEntry find(char *word)
 
 // Creates and returns a new dictionary entry. That entry has its header written
 // to memory.
-static DictionaryEntry newentry(char *name, EntryType type)
+static DictionaryEntry _create(char *name, EntryType type)
 {
     DictionaryEntry de;
     de.type = type;
@@ -148,57 +145,55 @@ static DictionaryEntry newentry(char *name, EntryType type)
     de.arg = 0;
     de.prev = lastentryoffset;
     de.offset = nextoffset;
-    m->mem[de.offset] = de.type;
-    strncpy(&m->mem[de.offset+1], de.name, NAME_LEN);
-    writew(de.offset+9, de.prev);
+    m->mem[de.offset+ENTRY_FIELD_TYPE] = de.type;
+    strncpy(&m->mem[de.offset+ENTRY_FIELD_NAME], de.name, NAME_LEN);
+    writew(de.offset+ENTRY_FIELD_PREV, de.prev);
     lastentryoffset = de.offset;
-    nextoffset = de.offset + 13;
+    // We always allot a word after a new entry's header
+    nextoffset = de.offset + ENTRY_FIELD_DATA + 2;
     return de;
 }
 
 static void nativeentry(char *name, int index)
 {
-    DictionaryEntry de = newentry(name, TYPE_NATIVE);
-    de.arg = index;
-    writeentryarg(&de);
+    DictionaryEntry de = _create(name, TYPE_NATIVE);
+    writew(de.offset+ENTRY_FIELD_DATA, index);
 }
 
 static HeapItem readheap(int offset)
 {
     HeapItem r;
-    byte val = m->mem[HEAP_ADDR+offset];
+    byte val = m->mem[offset];
     if (val == 0xff) {
         r.type = TYPE_STOP;
     } else if (val == 0xfe) {
         r.type = TYPE_NUM;
-        r.arg = m->mem[HEAP_ADDR+offset+1];
-        r.arg |= m->mem[HEAP_ADDR+offset+2] << 8;
+        r.arg = m->mem[offset+1];
+        r.arg |= m->mem[offset+2] << 8;
         r.next = offset+3;
     } else {
         r.type = TYPE_WORD;
         r.arg = val;
-        r.arg |= m->mem[HEAP_ADDR+offset+1] << 8;
+        r.arg |= m->mem[offset+1] << 8;
         r.next = offset+2;
     }
     return r;
 }
 
-// write to heapptr and updates it
 static void writeheap(HeapItem *hi)
 {
     switch (hi->type) {
         case TYPE_STOP:
-            m->mem[HEAP_ADDR+heapptr++] = 0xff;
-            heapptr++;
+            m->mem[nextoffset++] = 0xff;
             break;
         case TYPE_NUM:
-            m->mem[HEAP_ADDR+heapptr++] = 0xfe;
-            m->mem[HEAP_ADDR+heapptr++] = hi->arg & 0xff;
-            m->mem[HEAP_ADDR+heapptr++] = (hi->arg >> 8) & 0xff;
+            m->mem[nextoffset++] = 0xfe;
+            m->mem[nextoffset++] = hi->arg & 0xff;
+            m->mem[nextoffset++] = (hi->arg >> 8) & 0xff;
             break;
         case TYPE_WORD:
-            m->mem[HEAP_ADDR+heapptr++] = hi->arg & 0xff;
-            m->mem[HEAP_ADDR+heapptr++] = (hi->arg >> 8) & 0xff;
+            m->mem[nextoffset++] = hi->arg & 0xff;
+            m->mem[nextoffset++] = (hi->arg >> 8) & 0xff;
             break;
     }
 }
@@ -304,7 +299,7 @@ static void execute() {
     readentry(&de, offset);
     switch (de.type) {
         case TYPE_COMPILED:
-            offset = de.arg;
+            offset = offset + ENTRY_FIELD_DATA;
             HeapItem hi = readheap(offset);
             while (execstep(&hi) != TYPE_STOP) {
                 hi = readheap(hi.next);
@@ -354,9 +349,8 @@ static void define()
         aborted = 1;
         return;
     }
-    DictionaryEntry de = newentry(word, TYPE_COMPILED);
-    de.arg = heapptr;
-    writeentryarg(&de);
+    DictionaryEntry de = _create(word, TYPE_COMPILED);
+    nextoffset -= 2; // we start writing the heap right after the entry's header
     word = readword();
     HeapItem hi;
     while ((*word) && (*word != ';')) {
@@ -364,7 +358,8 @@ static void define()
         writeheap(&hi);
         if (aborted) {
             // Something went wrong, let's rollback on new entry
-            heapptr = de.arg;
+            lastentryoffset = de.prev;
+            nextoffset = de.offset;
             return;
         }
         word = readword();
@@ -410,7 +405,7 @@ static void variable()
         error("No variable name");
         return;
     }
-    newentry(word, TYPE_CELL);
+    _create(word, TYPE_CELL);
 }
 
 static void store()
@@ -449,6 +444,7 @@ static void forget()
         writew(de.next+9, de.prev);
     }
 }
+
 // Inside Z80
 
 // get pointer to word reg
