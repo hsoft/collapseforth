@@ -363,7 +363,14 @@ static void dot()
 {
     int num = pop();
     if (aborted) return;
-    printf("%d\n", num);
+    printf("%d", num);
+}
+
+static void dotx()
+{
+    int num = pop();
+    if (aborted) return;
+    printf("%02x", num);
 }
 
 static void define()
@@ -624,7 +631,7 @@ static void call()
 static Callable native_funcs[] = {
     emit, bye, dot, execute, define, loadf, store, fetch, storec, fetchc,
     forget, create, allot, here, regr, regw, plus, minus, mult, div_, and_, or_,
-    lshift, rshift, call};
+    lshift, rshift, call, dotx};
 
 static void call_native(int index)
 {
@@ -658,6 +665,7 @@ static void init_dict()
     nativeentry("lshift", 22);
     nativeentry("rshift", 23);
     nativeentry("call", 24);
+    nativeentry(".x", 25);
 }
 
 int main()
