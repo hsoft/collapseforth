@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include <readline/readline.h>
 #include "emul.h"
+#include "core.h"
 
 #define NAME_LEN 8
 #define STACK_SIZE 500
@@ -90,6 +91,7 @@ static Machine *m;
 
 // Foward declarations
 static void execute();
+static void interpret();
 static void call_native(int index);
 
 // Internal
@@ -258,7 +260,7 @@ static void compile(HeapItem *hi, char *word)
         // not in dict, maybe a number?
         char *endptr;
         int num = strtol(word, &endptr, 10);
-        if ((endptr == lineptr) || (endptr == lineptr-1)) {
+        if ((endptr > word) && ((endptr == lineptr) || (endptr == lineptr-1))) {
             // whole word read, this means it was a number, we're good.
             hi->type = TYPE_NUM;
             hi->arg = num;
@@ -289,6 +291,21 @@ static void error(char *msg)
     printf("%s\n", msg);
     aborted = 1;
     return;
+}
+
+// Not static because it's used in core_forth.c
+void interpret_line(const char *line)
+{
+    char buf[0x200];
+    char *oldline = curline;
+    char *oldptr = lineptr;
+    strcpy(buf, line);
+    curline = buf;
+    lineptr = curline;
+    aborted = 0;
+    while (running && (!aborted)) interpret();
+    curline = oldline;
+    lineptr = oldptr;
 }
 
 // Callable
@@ -370,11 +387,10 @@ static void define()
 
 static void loadf()
 {
-    char *oldline = curline;
-    char *oldptr = lineptr;
-    char *fname = readword();
+    char *line = NULL;
     ssize_t read;
     ssize_t len = 0;
+    char *fname = readword();
 
     if (!fname) {
         error("Missing filename");
@@ -386,16 +402,11 @@ static void loadf()
         return;
     }
 
-    curline = NULL;
-    while ((read = getline(&curline, &len, fp)) != -1) {
-        lineptr = curline;
-        while (running && (!aborted)) interpret();
+    while ((read = getline(&line, &len, fp)) != -1) {
+        interpret_line(line);
     }
     free(curline);
     fclose(fp);
-    // restore old curline/lineptr
-    curline = oldline;
-    lineptr = oldptr;
 }
 
 static void variable()
@@ -549,6 +560,7 @@ int main()
     m = emul_init();
     init_dict();
     running = 1;
+    init_core_defs();
     while (running) {
         aborted = 0;
         curline = readline("? ");
