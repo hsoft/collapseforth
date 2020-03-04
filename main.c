@@ -259,7 +259,15 @@ static void compile(HeapItem *hi, char *word)
     } else {
         // not in dict, maybe a number?
         char *endptr;
-        int num = strtol(word, &endptr, 10);
+        int num;
+        if (strncmp(word, "0x", 2) == 0) {
+            // Hex literal
+            word += 2;
+            num = strtol(word, &endptr, 16);
+        } else {
+            // Try decimal
+            num = strtol(word, &endptr, 10);
+        }
         if ((endptr > word) && ((endptr == lineptr) || (endptr == lineptr-1))) {
             // whole word read, this means it was a number, we're good.
             hi->type = TYPE_NUM;
