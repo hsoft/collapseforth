@@ -1,21 +1,32 @@
+*** Concepts ***
+
+HERE            Memory offset pointing to the end of the dictionnary. Creating
+                a new entry places that entry HERE and then increases it
+                accordingly.
+
 *** Builtin words ***
 
 hello           ( -- )      Print "Hello Forth!".
 bye             ( -- )      Quits interpreter.
 .               ( n -- )    Print n in decimal representation.
 execute         ( hi -- )   Execute from heap starting at index hi.
-; w t1 t2 ... ; ( -- )      Define word w and associate with code compiled from
+: w t1 t2 ... ; ( -- )      Define word w and associate with code compiled from
                             tokens.
 loadf fname     ( -- )      Reads file fname and interprets its contents as if
                             it was typed directly in the interpreter.
-variable name   ( -- )      Creates a new word pointing to a cell.
 !               ( x a -- )  store value x in cell at address (heap index) a.
 @               ( a -- x )  fetch value x from cell at address (heap index) a.
-
+forget x        ( -- )      Remove latest entry named x from dict.
+create x        ( -- )      Create entry named x, header only
+allot           ( n -- )    Increase HERE by n.
+here            ( -- n )    Push HERE to stack.
 regr r          ( -- n)     Put value of register r in n. r can be a single
                             register name (A, B, C) or a pair (BC, DE).
 regw r          ( n -- )    Put n in register r.
 
-*** In core.fth ***
+*** In core ***
 
+variable x      ( -- )      Creates a new word x pointing to a 2 bytes cell.
 ?               ( -- )      Same as "@ ."
+,               ( n -- )    Grow latest entry by 2 bytes and set those bytes to
+                            value n.

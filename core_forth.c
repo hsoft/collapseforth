@@ -7,7 +7,9 @@ extern void interpret_line(const char *line);
 void init_core_defs()
 {
     char *lines[] = {
+        ": variable create 2 allot ;",
         ": ? @ . ;",
+        ": , here ! 2 allot ;",
     };
     for (int i=0; i<(sizeof(lines)/sizeof(char*)); i++) {
         interpret_line(lines[i]);

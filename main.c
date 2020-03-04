@@ -409,16 +409,6 @@ static void loadf()
     fclose(fp);
 }
 
-static void variable()
-{
-    char *word = readword();
-    if (!*word) {
-        error("No variable name");
-        return;
-    }
-    _create(word, TYPE_CELL);
-}
-
 static void store()
 {
     int addr = pop();
@@ -497,6 +487,27 @@ static byte* _getbreg(char *name)
     }
 }
 
+static void create()
+{
+    char *word = readword();
+    if (!*word) {
+        error("Name needed");
+        return;
+    }
+    _create(word, TYPE_CELL);
+    nextoffset -= 2; // The create word doesn't allot any data.
+}
+
+static void allot()
+{
+    nextoffset += pop();
+}
+
+static void here()
+{
+    push(nextoffset);
+}
+
 static void regr()
 {
     char *name = readword();
@@ -531,8 +542,8 @@ static void regw()
 
 // Main loop
 static Callable native_funcs[] = {
-    hello, bye, dot, execute, define, loadf, variable, store, fetch, forget,
-    regr, regw};
+    hello, bye, dot, execute, define, loadf, store, fetch, forget, create,
+    allot, here, regr, regw};
 
 static void call_native(int index)
 {
@@ -547,12 +558,14 @@ static void init_dict()
     nativeentry("execute", 3);
     nativeentry(":", 4);
     nativeentry("loadf", 5);
-    nativeentry("variable", 6);
-    nativeentry("!", 7);
-    nativeentry("@", 8);
-    nativeentry("forget", 9);
-    nativeentry("regr", 10);
-    nativeentry("regw", 11);
+    nativeentry("!", 6);
+    nativeentry("@", 7);
+    nativeentry("forget", 8);
+    nativeentry("create", 9);
+    nativeentry("allot", 10);
+    nativeentry("here", 11);
+    nativeentry("regr", 12);
+    nativeentry("regw", 13);
 }
 
 int main()
