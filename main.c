@@ -615,11 +615,16 @@ static void rshift()
     push(n >> x);
 }
 
+static void call()
+{
+    m->cpu.PC = pop();
+    emul_loop();
+}
 // Main loop
 static Callable native_funcs[] = {
     emit, bye, dot, execute, define, loadf, store, fetch, storec, fetchc,
     forget, create, allot, here, regr, regw, plus, minus, mult, div_, and_, or_,
-    lshift, rshift};
+    lshift, rshift, call};
 
 static void call_native(int index)
 {
@@ -652,6 +657,7 @@ static void init_dict()
     nativeentry("or", 21);
     nativeentry("lshift", 22);
     nativeentry("rshift", 23);
+    nativeentry("call", 24);
 }
 
 int main()

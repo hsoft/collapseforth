@@ -20,3 +20,24 @@ Now, I still don't understand what is so special about Forth, but because I'm a
 So here I am, trying to bootstrap a new Collapse OS, but this time, in Forth.
 I'm not sure yet of whether it will replace the assembly version or not, but one
 thing is probable: I'll finally know what Forth is about.
+
+## Forth and assembler
+
+I intend to fully embrace Forth's approach to computing in this Collapse OS
+reboot so that I can take advantage of Forth's simplicity and compactness.
+
+Therefore, assembling and executing native code will go through a "Forth-style"
+assembly language. That is: there is no separate parser for assembly code.
+Someone wanting to assemble what would be, in a typical assembly language,
+`inc a \ ret` would end up doing `a inc, ret,` in the interpreter after having
+loaded `zasm.fth`.
+
+How does it translate in real usage? Here's a full example:
+
+    ? loadf zasm.fth
+    ? create foo A inc, halt,
+    ? 42 regw A
+    ? foo call
+    ? regr A .
+    43
+    ?

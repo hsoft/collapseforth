@@ -31,6 +31,10 @@ regw r          ( n -- )        Put n in register r.
 /               ( x y -- z )    x / y => z
 lshift          ( x y -- z )    left shift of x by y places => z
 rshift          ( x y -- z )    right shift of x by y places => z
+call            ( a -- )        Set PC to a and execute code until the CPU has
+                                halted. Note that the halting condition is
+                                temporary. When the interpreter has fully moved
+                                into z80, a RET will return from that call.
 
 *** In core ***
 
@@ -40,3 +44,15 @@ variable x      ( -- )          Creates a new word x pointing to a 2 bytes cell.
                                 to value n.
 C,              ( n -- )        Grow latest entry by 1 byte and set that byte to
                                 value n.
+
+*** zasm (in zasm.fth) ***
+
+A, B C, D, E,   ( -- n )        Push a "register value" associated with the
+H, L, (HL)                      specified register in n. That number equates
+                                the value given to those register in most
+                                opcodes using "r" (example, INC). This means
+                                that this value can be used as-is (after
+                                shifting) in final upcodes.
+halt,           ( -- )          Write "HALT" upcode to dict.
+ret,            ( -- )          Write "RET" upcode to dict.
+inc,            ( r -- )        Write "INC r" upcode to dict
