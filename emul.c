@@ -84,6 +84,7 @@ bool emul_steps(unsigned int steps)
 
 void emul_loop()
 {
+    m.cpu.halted = 0;
     while (emul_step());
 }
 

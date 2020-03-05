@@ -4,6 +4,7 @@
 #include <string.h>
 #include "emul.h"
 #include "core.h"
+#include "words-bin.h"
 
 #define NAME_LEN 8
 /* About dictionary
@@ -55,7 +56,9 @@ typedef enum {
     // native_funcs array.
     TYPE_NATIVE = 1,
     // Entry is a cell, arg holds cell value.
-    TYPE_CELL = 2
+    TYPE_CELL = 2,
+    // Entry holds z80 binary code.
+    TYPE_Z80BIN = 3,
 } EntryType;
 
 typedef enum {
@@ -91,6 +94,7 @@ static Machine *m;
 static void execute();
 static int interpret();
 static void call_native(int index);
+static void call();
 
 // Internal
 
@@ -151,12 +155,6 @@ static DictionaryEntry _create(char *name, EntryType type, uint16_t extra_allot)
     writew(CURRENT_ADDR, de.offset);
     writew(HERE_ADDR, de.offset + ENTRY_FIELD_DATA + extra_allot);
     return de;
-}
-
-static void nativeentry(char *name, int index)
-{
-    DictionaryEntry de = _create(name, TYPE_NATIVE, 2);
-    writew(de.offset+ENTRY_FIELD_DATA, index);
 }
 
 static HeapItem readheap(int offset)
@@ -332,6 +330,10 @@ static void execute() {
             break;
         case TYPE_CELL:
             push(offset+ENTRY_FIELD_DATA);
+            break;
+        case TYPE_Z80BIN:
+            push(offset+ENTRY_FIELD_DATA);
+            call();
             break;
     }
 }
@@ -561,13 +563,6 @@ static void regw()
     }
 }
 
-static void plus()
-{
-    uint16_t n2 = pop();
-    uint16_t n1 = pop();
-    push(n1 + n2);
-}
-
 static void minus()
 {
     uint16_t n2 = pop();
@@ -626,12 +621,28 @@ static void call()
 // Main loop
 static Callable native_funcs[] = {
     emit, bye, dot, execute, define, loadf, store, fetch, storec, fetchc,
-    forget, create, here, current, regr, regw, plus, minus, mult, div_,
+    forget, create, here, current, regr, regw, minus, mult, div_,
     and_, or_, lshift, rshift, call, dotx};
 
 static void call_native(int index)
 {
     native_funcs[index]();
+}
+
+static void nativeentry(char *name, int index)
+{
+    DictionaryEntry de = _create(name, TYPE_NATIVE, 2);
+    writew(de.offset+ENTRY_FIELD_DATA, index);
+}
+
+static void z80entry(char *name, unsigned char* bin, uint16_t binlen)
+{
+    DictionaryEntry de = _create(name, TYPE_Z80BIN, binlen+1);
+    for (int i=0; i<binlen; i++) {
+        m->mem[de.offset+ENTRY_FIELD_DATA+i] = bin[i];
+    }
+    // End with a HALT (0x76)
+    m->mem[de.offset+ENTRY_FIELD_DATA+binlen] = 0x76;
 }
 
 static void init_dict()
@@ -654,7 +665,6 @@ static void init_dict()
     nativeentry("current", i++);
     nativeentry("regr", i++);
     nativeentry("regw", i++);
-    nativeentry("+", i++);
     nativeentry("-", i++);
     nativeentry("*", i++);
     nativeentry("/", i++);
@@ -664,6 +674,7 @@ static void init_dict()
     nativeentry("rshift", i++);
     nativeentry("call", i++);
     nativeentry(".x", i++);
+    z80entry("+", plus_bin, sizeof(plus_bin));
 }
 
 int main(int argc, char *argv[])
