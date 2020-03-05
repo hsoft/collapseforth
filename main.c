@@ -675,6 +675,7 @@ static void init_dict()
     nativeentry("call", i++);
     nativeentry(".x", i++);
     z80entry("+", plus_bin, sizeof(plus_bin));
+    z80entry("swap", swap_bin, sizeof(swap_bin));
 }
 
 int main(int argc, char *argv[])

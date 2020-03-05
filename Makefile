@@ -1,6 +1,6 @@
 TARGET = forth
 OBJS = main.o core_forth.o emul.o libz80/libz80.o
-ASMWORDS = plus
+ASMWORDS = plus swap
 ASMWORDSRC = ${ASMWORDS:%=words/%.fth}
 
 .PHONY: all

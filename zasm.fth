@@ -11,10 +11,12 @@
 : HL 2
 : AF 3
 : SP 3
-: ret, 0xc9 C,
-: halt, 0x76 C,
-: inc, 3 lshift 0x04 or C,
-: push, 4 lshift 0xc5 or C,
-: pop, 4 lshift 0xc1 or C,
-: addHL, 4 lshift 0x09 or C,
+: RET, 0xc9 C,
+: HALT, 0x76 C,
+: INCr, 3 lshift 0x04 or C,
+: PUSHqq, 4 lshift 0xc5 or C,
+: POPqq, 4 lshift 0xc1 or C,
+: ADDHLss, 4 lshift 0x09 or C,
+: OUTAn, 0xd3 C, C,
+: INAn, 0xdb C, C,
 
