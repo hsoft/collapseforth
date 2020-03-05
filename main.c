@@ -1,7 +1,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdint.h>
-#include <readline/readline.h>
+#include <string.h>
 #include "emul.h"
 #include "core.h"
 
@@ -89,7 +89,7 @@ static Machine *m;
 
 // Foward declarations
 static void execute();
-static void interpret();
+static int interpret();
 static void call_native(int index);
 
 // Internal
@@ -308,7 +308,7 @@ void interpret_line(const char *line)
     curline = buf;
     lineptr = curline;
     aborted = 0;
-    while (running && (!aborted)) interpret();
+    while (interpret());
     curline = oldline;
     lineptr = oldptr;
 }
@@ -336,13 +336,12 @@ static void execute() {
     }
 }
 
-static void interpret() {
+// Returns true if we still have words to interpret.
+static int interpret() {
     char *word = readword();
     HeapItem hi;
     compile(&hi, word);
-    if (execstep(&hi) == TYPE_STOP) {
-        aborted = 1;
-    }
+    return running && !aborted && execstep(&hi) != TYPE_STOP;
 }
 
 static void emit()
@@ -417,7 +416,7 @@ static void loadf()
     while ((read = getline(&line, &len, fp)) != -1) {
         interpret_line(line);
     }
-    free(curline);
+    free(line);
     fclose(fp);
 }
 
@@ -683,13 +682,16 @@ int main(int argc, char *argv[])
         }
         return 0;
     }
+    char inputbuf[0x200];
     while (running) {
         aborted = 0;
-        curline = readline("? ");
+        curline = fgets(inputbuf, 0x200, stdin);
         if (curline == NULL) break;
         lineptr = curline;
-        while (running && (!aborted)) interpret();
-        free(curline);
+        while (interpret());
+        if (!aborted) {
+            printf(" ok\n");
+        }
     }
     return 0;
 }
