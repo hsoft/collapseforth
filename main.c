@@ -462,16 +462,6 @@ static void create()
     _create(word, TYPE_CELL, 0);
 }
 
-static void here()
-{
-    push(HERE_ADDR);
-}
-
-static void current()
-{
-    push(CURRENT_ADDR);
-}
-
 // get pointer to word reg
 static ushort* _getwreg(char *name)
 {
@@ -642,8 +632,8 @@ static void iowr_stdio(uint8_t val)
 // Main loop
 static Callable native_funcs[] = {
     bye, dot, execute, define, loadf, store, fetch, storec, fetchc,
-    forget, create, current, regr, regw, minus, mult, div_,
-    and_, or_, lshift, rshift, call, dotx, apos, see};
+    forget, create, regr, regw, minus, mult, div_,
+    and_, or_, lshift, rshift, call, dotx};
 
 static void call_native(int index)
 {
@@ -681,7 +671,6 @@ static void init_dict()
     nativeentry("C@", i++);
     nativeentry("forget", i++);
     nativeentry("create", i++);
-    nativeentry("current", i++);
     nativeentry("regr", i++);
     nativeentry("regw", i++);
     nativeentry("-", i++);
@@ -700,6 +689,7 @@ static void init_dict()
     z80entry("emit", emit_bin, sizeof(emit_bin));
     z80entry("dup", dup_bin, sizeof(dup_bin));
     z80entry("here", here_bin, sizeof(here_bin));
+    z80entry("current", current_bin, sizeof(current_bin));
 }
 
 int main(int argc, char *argv[])

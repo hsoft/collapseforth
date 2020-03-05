@@ -15,3 +15,6 @@ unsigned char dup_bin[] = {
 unsigned char here_bin[] = { 
   0x21, 0xfe, 0x2f, 0xe5
  };
+unsigned char current_bin[] = { 
+  0x21, 0xfc, 0x2f, 0xe5
+ };
