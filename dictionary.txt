@@ -1,8 +1,12 @@
-*** Concepts ***
+*** Variables ***
 
-HERE            Memory offset pointing to the end of the dictionnary. Creating
+Each variable have an associated constant word.
+
+here            Memory offset pointing to the end of the dictionary. Creating
                 a new entry places that entry HERE and then increases it
                 accordingly.
+
+current         Memory offset pointing to the last entry of the dictionary.
 
 *** Builtin words ***
 
@@ -21,8 +25,7 @@ C!              ( x a -- )      store byte value x in cell at address a.
 C@              ( a -- x )      fetch value x from cell at address a.
 forget x        ( -- )          Remove latest entry named x from dict.
 create x        ( -- )          Create entry named x, header only
-allot           ( n -- )        Increase HERE by n.
-here            ( -- n )        Push HERE to stack.
+allot           ( n -- )        Increase "here" variable by n.
 regr r          ( -- n)         Put value of register r in n. r can be a single
                                 register name (A, B, C) or a pair (BC, DE).
 regw r          ( n -- )        Put n in register r.

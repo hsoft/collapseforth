@@ -24,6 +24,11 @@ Structure
 #define ENTRY_FIELD_PREV 9
 #define ENTRY_FIELD_DATA 11
 
+// System variables
+// See *variables* section in dictionary.txt for meaning.
+#define HERE_ADDR 0x2ffe
+#define CURRENT_ADDR 0x2ffc
+
 /* About heap item (misnomer for now...)
 The heap is where compiled code lives. It's in z80 memory at a precise offset
 and is refered to, in DictionaryEntry, as a memory offset.
@@ -74,10 +79,6 @@ typedef struct {
     uint16_t arg; // see EntryType comments.
 } DictionaryEntry;
 
-// Offset of last entry in dictionary
-static uint16_t lastentryoffset = 0;
-// Offset where we will create our next entry
-static uint16_t nextoffset = DICT_ADDR;
 static char *curline, *lineptr;
 // Whether we should continue running the program
 static int running = 1;
@@ -120,8 +121,8 @@ static DictionaryEntry find(char *word)
 {
     DictionaryEntry de;
     // We purposefully omit the "no entry" case: never happens.
-    de.prev = lastentryoffset;
-    de.offset = nextoffset;
+    de.prev = readw(CURRENT_ADDR);
+    de.offset = readw(HERE_ADDR);
     de.next = 0;
     while (de.prev > 0) {
         de.next = de.offset; // useful for forget()
@@ -136,26 +137,25 @@ static DictionaryEntry find(char *word)
 
 // Creates and returns a new dictionary entry. That entry has its header written
 // to memory.
-static DictionaryEntry _create(char *name, EntryType type)
+static DictionaryEntry _create(char *name, EntryType type, uint16_t extra_allot)
 {
     DictionaryEntry de;
     de.type = type;
     de.name = name;
     de.arg = 0;
-    de.prev = lastentryoffset;
-    de.offset = nextoffset;
+    de.prev = readw(CURRENT_ADDR);
+    de.offset = readw(HERE_ADDR);
     m->mem[de.offset+ENTRY_FIELD_TYPE] = de.type;
     strncpy(&m->mem[de.offset+ENTRY_FIELD_NAME], de.name, NAME_LEN);
     writew(de.offset+ENTRY_FIELD_PREV, de.prev);
-    lastentryoffset = de.offset;
-    // We always allot a word after a new entry's header
-    nextoffset = de.offset + ENTRY_FIELD_DATA + 2;
+    writew(CURRENT_ADDR, de.offset);
+    writew(HERE_ADDR, de.offset + ENTRY_FIELD_DATA + extra_allot);
     return de;
 }
 
 static void nativeentry(char *name, int index)
 {
-    DictionaryEntry de = _create(name, TYPE_NATIVE);
+    DictionaryEntry de = _create(name, TYPE_NATIVE, 2);
     writew(de.offset+ENTRY_FIELD_DATA, index);
 }
 
@@ -181,6 +181,7 @@ static HeapItem readheap(int offset)
 
 static void writeheap(HeapItem *hi)
 {
+    uint16_t nextoffset = readw(HERE_ADDR);
     switch (hi->type) {
         case TYPE_STOP:
             m->mem[nextoffset++] = 0xff;
@@ -195,6 +196,7 @@ static void writeheap(HeapItem *hi)
             m->mem[nextoffset++] = (hi->arg >> 8) & 0xff;
             break;
     }
+    writew(HERE_ADDR, nextoffset);
 }
 
 static void push(uint16_t x)
@@ -356,14 +358,14 @@ static void bye()
 
 static void dot()
 {
-    int num = pop();
+    uint16_t num = pop();
     if (aborted) return;
     printf("%d", num);
 }
 
 static void dotx()
 {
-    int num = pop();
+    uint16_t num = pop();
     if (aborted) return;
     printf("%02x", num);
 }
@@ -376,8 +378,8 @@ static void define()
         aborted = 1;
         return;
     }
-    DictionaryEntry de = _create(word, TYPE_COMPILED);
-    nextoffset -= 2; // we start writing the heap right after the entry's header
+    // we start writing the heap right after the entry's header
+    DictionaryEntry de = _create(word, TYPE_COMPILED, 0);
     word = readword();
     HeapItem hi;
     while ((*word) && (*word != ';')) {
@@ -385,8 +387,8 @@ static void define()
         writeheap(&hi);
         if (aborted) {
             // Something went wrong, let's rollback on new entry
-            lastentryoffset = de.prev;
-            nextoffset = de.offset;
+            writew(CURRENT_ADDR, de.prev);
+            writew(HERE_ADDR, de.offset);
             return;
         }
         word = readword();
@@ -457,10 +459,10 @@ static void forget()
         error("Name not found");
         return;
     }
-    if (de.offset == lastentryoffset) {
+    if (de.offset == readw(CURRENT_ADDR)) {
         // We're the last of the chain
-        lastentryoffset = de.prev;
-        nextoffset = de.offset;
+        writew(CURRENT_ADDR, de.prev);
+        writew(HERE_ADDR, de.offset);
     } else {
         // not the last, we have to hook stuff.
         // de.next is the offset of the next entry. We need to write "de.prev"
@@ -476,18 +478,25 @@ static void create()
         error("Name needed");
         return;
     }
-    _create(word, TYPE_CELL);
-    nextoffset -= 2; // The create word doesn't allot any data.
+    // The create word doesn't allot any data.
+    _create(word, TYPE_CELL, 0);
 }
 
 static void allot()
 {
+    uint16_t nextoffset = readw(HERE_ADDR);
     nextoffset += pop();
+    writew(HERE_ADDR, nextoffset);
 }
 
 static void here()
 {
-    push(nextoffset);
+    push(readw(HERE_ADDR));
+}
+
+static void current()
+{
+    push(readw(CURRENT_ADDR));
 }
 
 // get pointer to word reg
@@ -625,8 +634,8 @@ static void call()
 // Main loop
 static Callable native_funcs[] = {
     emit, bye, dot, execute, define, loadf, store, fetch, storec, fetchc,
-    forget, create, allot, here, regr, regw, plus, minus, mult, div_, and_, or_,
-    lshift, rshift, call, dotx};
+    forget, create, allot, here, current, regr, regw, plus, minus, mult, div_,
+    and_, or_, lshift, rshift, call, dotx};
 
 static void call_native(int index)
 {
@@ -649,24 +658,26 @@ static void init_dict()
     nativeentry("create", 11);
     nativeentry("allot", 12);
     nativeentry("here", 13);
-    nativeentry("regr", 14);
-    nativeentry("regw", 15);
-    nativeentry("+", 16);
-    nativeentry("-", 17);
-    nativeentry("*", 18);
-    nativeentry("/", 19);
-    nativeentry("and", 20);
-    nativeentry("or", 21);
-    nativeentry("lshift", 22);
-    nativeentry("rshift", 23);
-    nativeentry("call", 24);
-    nativeentry(".x", 25);
+    nativeentry("current", 14);
+    nativeentry("regr", 15);
+    nativeentry("regw", 16);
+    nativeentry("+", 17);
+    nativeentry("-", 18);
+    nativeentry("*", 19);
+    nativeentry("/", 20);
+    nativeentry("and", 21);
+    nativeentry("or", 22);
+    nativeentry("lshift", 23);
+    nativeentry("rshift", 24);
+    nativeentry("call", 25);
+    nativeentry(".x", 26);
 }
 
 int main(int argc, char *argv[])
 {
     m = emul_init();
     m->cpu.R1.wr.SP = 0xffff;
+    writew(HERE_ADDR, DICT_ADDR);
     init_dict();
     running = 1;
     init_core_defs();
