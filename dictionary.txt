@@ -52,12 +52,20 @@ C,              ( n -- )        Grow latest entry by 1 byte and set that byte to
 
 *** zasm (in zasm.fth) ***
 
-A, B C, D, E,   ( -- n )        Push a "register value" associated with the
-H, L, (HL)                      specified register in n. That number equates
-                                the value given to those register in most
-                                opcodes using "r" (example, INC). This means
-                                that this value can be used as-is (after
-                                shifting) in final upcodes.
-halt,           ( -- )          Write "HALT" upcode to dict.
-ret,            ( -- )          Write "RET" upcode to dict.
-inc,            ( r -- )        Write "INC r" upcode to dict
+This unit supplies word to emit binary upcode from mnemonics. Those mnemonics
+follow these patterns:
+
+No argument: The word, which corresponds to the z80 mnemonic, spits (using
+"C,") the upcode. For example, "HALT," spits 0x76.
+
+Regular argument(s): Upcode that follow a rgular pattern have their argument
+"spec letter" as a prefix in the word. For example, "LD r, r'" is invoked with
+the word "LDrr,". Arguments must be in the stack in *inverse* order (so that
+in the code itself, they appear in an order that isn't mind-bending). For
+example, "LD A, 42" is typed "A 42 LDrn,".
+
+Special arguments: Some upcodes have some kind of "constant" arguments and map
+to irregular upcodes. For example "ADD HL, ss". These have specifics words. For
+example, "ADD HL, DE" is invoked as "DE ADDHLss,"
+
+Not all upcodes are implemented yet. Look in zasm.fth.

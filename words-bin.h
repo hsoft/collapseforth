@@ -6,3 +6,6 @@ unsigned char plus_bin[] = {
 unsigned char swap_bin[] = { 
   0xe1, 0xd1, 0xe5, 0xd5
  };
+unsigned char emit_bin[] = { 
+  0xe1, 0x7d, 0xd3, 0x00
+ };

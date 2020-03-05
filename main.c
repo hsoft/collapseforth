@@ -30,6 +30,9 @@ Structure
 #define HERE_ADDR 0x2ffe
 #define CURRENT_ADDR 0x2ffc
 
+// Z80 Ports
+#define STDIO_PORT 0x00
+
 /* About heap item (misnomer for now...)
 The heap is where compiled code lives. It's in z80 memory at a precise offset
 and is refered to, in DictionaryEntry, as a memory offset.
@@ -346,11 +349,6 @@ static int interpret() {
     return running && !aborted && execstep(&hi) != TYPE_STOP;
 }
 
-static void emit()
-{
-    putchar(pop() & 0xff);
-}
-
 static void bye()
 {
     running = 0;
@@ -617,10 +615,26 @@ static void call()
     m->cpu.PC = pop();
     emul_loop();
 }
+// Z80 I/Os
+static uint8_t iord_stdio()
+{
+    int c = getchar();
+    if (c != EOF) {
+        return c & 0xff;
+    } else {
+        // EOF
+        return 0;
+    }
+}
+
+static void iowr_stdio(uint8_t val)
+{
+    putchar(val);
+}
 
 // Main loop
 static Callable native_funcs[] = {
-    emit, bye, dot, execute, define, loadf, store, fetch, storec, fetchc,
+    bye, dot, execute, define, loadf, store, fetch, storec, fetchc,
     forget, create, here, current, regr, regw, minus, mult, div_,
     and_, or_, lshift, rshift, call, dotx};
 
@@ -649,7 +663,6 @@ static void init_dict()
 {
     int i = 0;
     // same order as in native_funcs
-    nativeentry("emit", i++);
     nativeentry("bye", i++);
     nativeentry(".", i++);
     nativeentry("execute", i++);
@@ -676,11 +689,14 @@ static void init_dict()
     nativeentry(".x", i++);
     z80entry("+", plus_bin, sizeof(plus_bin));
     z80entry("swap", swap_bin, sizeof(swap_bin));
+    z80entry("emit", emit_bin, sizeof(emit_bin));
 }
 
 int main(int argc, char *argv[])
 {
     m = emul_init();
+    m->iord[STDIO_PORT] = iord_stdio;
+    m->iowr[STDIO_PORT] = iowr_stdio;
     m->cpu.R1.wr.SP = 0xffff;
     writew(HERE_ADDR, DICT_ADDR);
     init_dict();
