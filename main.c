@@ -690,6 +690,7 @@ static void init_dict()
     z80entry("+", plus_bin, sizeof(plus_bin));
     z80entry("swap", swap_bin, sizeof(swap_bin));
     z80entry("emit", emit_bin, sizeof(emit_bin));
+    z80entry("dup", dup_bin, sizeof(dup_bin));
 }
 
 int main(int argc, char *argv[])

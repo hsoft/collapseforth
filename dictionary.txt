@@ -40,6 +40,7 @@ call            ( a -- )        Set PC to a and execute code until the CPU has
                                 halted. Note that the halting condition is
                                 temporary. When the interpreter has fully moved
                                 into z80, a RET will return from that call.
+dup             ( n -- n n )    Duplicates TOS.
 
 *** In core ***
 
@@ -49,6 +50,7 @@ variable x      ( -- )          Creates a new word x pointing to a 2 bytes cell.
                                 to value n.
 C,              ( n -- )        Grow latest entry by 1 byte and set that byte to
                                 value n.
+splitb          ( n -- h l )    Split number n into hish and low bytes.
 
 *** zasm (in zasm.fth) ***
 
