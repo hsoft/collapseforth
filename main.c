@@ -209,7 +209,7 @@ static uint16_t pop()
 {
     if (m->cpu.R1.wr.SP == 0xffff) {
         aborted = 1;
-        printf("Stack underflow\n");
+        fprintf(stderr, "Stack underflow\n");
         return 0;
     }
     uint16_t r = readw(m->cpu.R1.wr.SP);
@@ -271,7 +271,7 @@ static void compile(HeapItem *hi, char *word)
             hi->arg = num;
         } else {
             // not a number
-            printf("What is %s?\n", word);
+            fprintf(stderr, "What is %s?\n", word);
             aborted = 1;
         }
     }
@@ -293,7 +293,7 @@ static HeapItemType execstep(HeapItem *hi)
 
 static void error(char *msg)
 {
-    printf("%s\n", msg);
+    fprintf(stderr, "%s\n", msg);
     aborted = 1;
     return;
 }
@@ -373,8 +373,7 @@ static void define()
 {
     char *word = readword();
     if (!*word) {
-        printf("No define name");
-        aborted = 1;
+        error("No define name");
         return;
     }
     // we start writing the heap right after the entry's header

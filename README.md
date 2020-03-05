@@ -21,6 +21,27 @@ So here I am, trying to bootstrap a new Collapse OS, but this time, in Forth.
 I'm not sure yet of whether it will replace the assembly version or not, but one
 thing is probable: I'll finally know what Forth is about.
 
+## Usage
+
+Build with `make`, which yields a `forth` executable.
+
+You can launch the interactive interpreter with a straight `./forth`.
+
+You can also call `./forth` with arguments. In this case, it will consider
+each argument as a line to interpret, interpret them, then quit.
+
+Forth's first focus is on bootstrapping itself, so it is already able to
+assemble some z80 upcode (see `zasm.fth`). There is a `zasm.sh` script that
+allows to quickly assemble forth-like assembler source files. Example:
+
+    $ cat test.asm 
+    HL pop,
+    DE pop,
+    DE addHL,
+    HL push,
+    $ ./zasm.sh test.asm | xxd
+    00000000: e1d1 19e5                                ....
+
 ## Forth and assembler
 
 I intend to fully embrace Forth's approach to computing in this Collapse OS
