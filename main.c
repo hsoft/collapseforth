@@ -482,21 +482,14 @@ static void create()
     _create(word, TYPE_CELL, 0);
 }
 
-static void allot()
-{
-    uint16_t nextoffset = readw(HERE_ADDR);
-    nextoffset += pop();
-    writew(HERE_ADDR, nextoffset);
-}
-
 static void here()
 {
-    push(readw(HERE_ADDR));
+    push(HERE_ADDR);
 }
 
 static void current()
 {
-    push(readw(CURRENT_ADDR));
+    push(CURRENT_ADDR);
 }
 
 // get pointer to word reg
@@ -631,10 +624,11 @@ static void call()
     m->cpu.PC = pop();
     emul_loop();
 }
+
 // Main loop
 static Callable native_funcs[] = {
     emit, bye, dot, execute, define, loadf, store, fetch, storec, fetchc,
-    forget, create, allot, here, current, regr, regw, plus, minus, mult, div_,
+    forget, create, here, current, regr, regw, plus, minus, mult, div_,
     and_, or_, lshift, rshift, call, dotx};
 
 static void call_native(int index)
@@ -644,33 +638,34 @@ static void call_native(int index)
 
 static void init_dict()
 {
-    nativeentry("emit", 0);
-    nativeentry("bye", 1);
-    nativeentry(".", 2);
-    nativeentry("execute", 3);
-    nativeentry(":", 4);
-    nativeentry("loadf", 5);
-    nativeentry("!", 6);
-    nativeentry("@", 7);
-    nativeentry("C!", 8);
-    nativeentry("C@", 9);
-    nativeentry("forget", 10);
-    nativeentry("create", 11);
-    nativeentry("allot", 12);
-    nativeentry("here", 13);
-    nativeentry("current", 14);
-    nativeentry("regr", 15);
-    nativeentry("regw", 16);
-    nativeentry("+", 17);
-    nativeentry("-", 18);
-    nativeentry("*", 19);
-    nativeentry("/", 20);
-    nativeentry("and", 21);
-    nativeentry("or", 22);
-    nativeentry("lshift", 23);
-    nativeentry("rshift", 24);
-    nativeentry("call", 25);
-    nativeentry(".x", 26);
+    int i = 0;
+    // same order as in native_funcs
+    nativeentry("emit", i++);
+    nativeentry("bye", i++);
+    nativeentry(".", i++);
+    nativeentry("execute", i++);
+    nativeentry(":", i++);
+    nativeentry("loadf", i++);
+    nativeentry("!", i++);
+    nativeentry("@", i++);
+    nativeentry("C!", i++);
+    nativeentry("C@", i++);
+    nativeentry("forget", i++);
+    nativeentry("create", i++);
+    nativeentry("here", i++);
+    nativeentry("current", i++);
+    nativeentry("regr", i++);
+    nativeentry("regw", i++);
+    nativeentry("+", i++);
+    nativeentry("-", i++);
+    nativeentry("*", i++);
+    nativeentry("/", i++);
+    nativeentry("and", i++);
+    nativeentry("or", i++);
+    nativeentry("lshift", i++);
+    nativeentry("rshift", i++);
+    nativeentry("call", i++);
+    nativeentry(".x", i++);
 }
 
 int main(int argc, char *argv[])

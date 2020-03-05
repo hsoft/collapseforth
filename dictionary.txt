@@ -1,6 +1,7 @@
 *** Variables ***
 
-Each variable have an associated constant word.
+Each variable have an associated word which behaves like a regular variable,
+that is, it pushes the address of the variable on the stack.
 
 here            Memory offset pointing to the end of the dictionary. Creating
                 a new entry places that entry HERE and then increases it
