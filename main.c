@@ -33,23 +33,6 @@ Structure
 // Z80 Ports
 #define STDIO_PORT 0x00
 
-/* About heap item (misnomer for now...)
-The heap is where compiled code lives. It's in z80 memory at a precise offset
-and is refered to, in DictionaryEntry, as a memory offset.
-
-Items in the heap are of variable length depending on their type:
-
-- If it's a word reference, the heap item is 2 bytes long: it's a straight
-  dictionary index.
-- If it's a number, it's 3 bytes long: the first byte is 0xfe, followed by the
-  2 bytes of the number.
-- The stop indicator is one byte and is 0xff.
-
-For this reason, the maximum theoretical number of dictionary entries is 0xfdff,
-but it's anyway impossible to fit that many entries in a 64k memory space.
-*/
-
-
 typedef void (*Callable) ();
 
 typedef enum {
@@ -168,14 +151,12 @@ static HeapItem readheap(int offset)
         r.type = TYPE_STOP;
     } else if (val == 0xfe) {
         r.type = TYPE_NUM;
-        r.arg = m->mem[offset+1];
-        r.arg |= m->mem[offset+2] << 8;
+        r.arg = readw(offset+1);
         r.next = offset+3;
     } else {
         r.type = TYPE_WORD;
-        r.arg = val;
-        r.arg |= m->mem[offset+1] << 8;
-        r.next = offset+2;
+        r.arg = readw(offset+1);
+        r.next = offset+3;
     }
     return r;
 }
@@ -189,12 +170,13 @@ static void writeheap(HeapItem *hi)
             break;
         case TYPE_NUM:
             m->mem[nextoffset++] = 0xfe;
-            m->mem[nextoffset++] = hi->arg & 0xff;
-            m->mem[nextoffset++] = (hi->arg >> 8) & 0xff;
+            writew(nextoffset, hi->arg);
+            nextoffset += 2;
             break;
         case TYPE_WORD:
-            m->mem[nextoffset++] = hi->arg & 0xff;
-            m->mem[nextoffset++] = (hi->arg >> 8) & 0xff;
+            m->mem[nextoffset++] = 0xfd;
+            writew(nextoffset, hi->arg);
+            nextoffset += 2;
             break;
     }
     writew(HERE_ADDR, nextoffset);

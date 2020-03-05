@@ -4,12 +4,13 @@ ASMWORDS = plus swap emit dup here
 ASMWORDSRC = ${ASMWORDS:%=words/%.fth}
 
 .PHONY: all
-all: $(TARGET) words-bin.h
+all: $(TARGET)
 
-words-bin.h: $(ASMWORDSRC) $(TARGET)
-	./fth2c.sh $(ASMWORDSRC) > $@
+.PHONY: bootstrap
+bootstrap: | $(ASMWORDSRC)
+	./fth2c.sh $(ASMWORDSRC) > words-bin.h
 
-$(TARGET): $(OBJS)
+$(TARGET): $(OBJS) words-bin.h
 	$(CC) $(LDFLAGS) -o $@ $(OBJS)
 
 libz80/libz80.o: libz80/z80.c
