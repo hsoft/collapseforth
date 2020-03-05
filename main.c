@@ -615,6 +615,31 @@ static void call()
     m->cpu.PC = pop();
     emul_loop();
 }
+
+static void apos()
+{
+    char *word = readword();
+    DictionaryEntry de = find(word);
+    if (de.offset == 0) {
+        error("Name not found");
+        return;
+    }
+    push(de.offset);
+}
+
+static void see()
+{
+    uint16_t addr = pop();
+    char buf[NAME_LEN+1] = {0};
+    strncpy(buf, &m->mem[addr+ENTRY_FIELD_NAME], NAME_LEN);
+    printf("Type: %x Name: %s Prev: %04x Dump:\n",
+        m->mem[addr], buf, readw(addr+ENTRY_FIELD_PREV));
+    for (int i=0; i<32; i++) {
+        printf("%02x", m->mem[addr+ENTRY_FIELD_DATA+i]);
+    }
+    printf("\n");
+}
+
 // Z80 I/Os
 static uint8_t iord_stdio()
 {
@@ -636,7 +661,7 @@ static void iowr_stdio(uint8_t val)
 static Callable native_funcs[] = {
     bye, dot, execute, define, loadf, store, fetch, storec, fetchc,
     forget, create, here, current, regr, regw, minus, mult, div_,
-    and_, or_, lshift, rshift, call, dotx};
+    and_, or_, lshift, rshift, call, dotx, apos, see};
 
 static void call_native(int index)
 {
@@ -687,6 +712,8 @@ static void init_dict()
     nativeentry("rshift", i++);
     nativeentry("call", i++);
     nativeentry(".x", i++);
+    nativeentry("'", i++);
+    nativeentry("see", i++);
     z80entry("+", plus_bin, sizeof(plus_bin));
     z80entry("swap", swap_bin, sizeof(swap_bin));
     z80entry("emit", emit_bin, sizeof(emit_bin));

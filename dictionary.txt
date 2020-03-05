@@ -11,36 +11,38 @@ current         Memory offset pointing to the last entry of the dictionary.
 
 *** Builtin words ***
 
-emit            ( c -- )        Emit character c to console.
-bye             ( -- )          Quits interpreter.
 .               ( n -- )        Print n in decimal representation.
 .x              ( n -- )        Print n in hex representation.
-execute         ( hi -- )       Execute from heap starting at offset hi.
 : w t1 t2 ... ; ( -- )          Define word w and associate with code compiled
                                 from tokens.
-loadf fname     ( -- )          Reads file fname and interprets its contents as
-                                if it was typed directly in the interpreter.
-!               ( x a -- )      store value x in cell at address a.
-@               ( a -- x )      fetch value x from cell at address a.
-C!              ( x a -- )      store byte value x in cell at address a.
-C@              ( a -- x )      fetch value x from cell at address a.
-forget x        ( -- )          Remove latest entry named x from dict.
-create x        ( -- )          Create entry named x, header only
-allot           ( n -- )        Increase "here" variable by n.
-regr r          ( -- n)         Put value of register r in n. r can be a single
-                                register name (A, B, C) or a pair (BC, DE).
-regw r          ( n -- )        Put n in register r.
 +               ( x y -- z )    x + y => z
 -               ( x y -- z )    x - y => z
 *               ( x y -- z )    x * y => z
 /               ( x y -- z )    x / y => z
-lshift          ( x y -- z )    left shift of x by y places => z
-rshift          ( x y -- z )    right shift of x by y places => z
+!               ( x a -- )      store value x in cell at address a.
+@               ( a -- x )      fetch value x from cell at address a.
+' w             ( -- a )        Find word w and push entry addr.
+allot           ( n -- )        Increase "here" variable by n.
+bye             ( -- )          Quits interpreter.
+C!              ( x a -- )      store byte value x in cell at address a.
+C@              ( a -- x )      fetch value x from cell at address a.
 call            ( a -- )        Set PC to a and execute code until the CPU has
                                 halted. Note that the halting condition is
                                 temporary. When the interpreter has fully moved
                                 into z80, a RET will return from that call.
+create x        ( -- )          Create entry named x, header only
 dup             ( n -- n n )    Duplicates TOS.
+emit            ( c -- )        Emit character c to console.
+execute         ( hi -- )       Execute from heap starting at offset hi.
+forget x        ( -- )          Remove latest entry named x from dict.
+loadf fname     ( -- )          Reads file fname and interprets its contents as
+                                if it was typed directly in the interpreter.
+lshift          ( x y -- z )    left shift of x by y places => z
+regr r          ( -- n)         Put value of register r in n. r can be a single
+                                register name (A, B, C) or a pair (BC, DE).
+regw r          ( n -- )        Put n in register r.
+rshift          ( x y -- z )    right shift of x by y places => z
+see             ( a -- )        Print debug info about entry at addr a.
 
 *** In core ***
 
