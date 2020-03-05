@@ -632,8 +632,8 @@ static void see()
     uint16_t addr = pop();
     char buf[NAME_LEN+1] = {0};
     strncpy(buf, &m->mem[addr+ENTRY_FIELD_NAME], NAME_LEN);
-    printf("Type: %x Name: %s Prev: %04x Dump:\n",
-        m->mem[addr], buf, readw(addr+ENTRY_FIELD_PREV));
+    printf("Addr: %04x Type: %x Name: %s Prev: %04x Dump:\n",
+        addr, m->mem[addr], buf, readw(addr+ENTRY_FIELD_PREV));
     for (int i=0; i<32; i++) {
         printf("%02x", m->mem[addr+ENTRY_FIELD_DATA+i]);
     }
