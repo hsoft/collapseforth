@@ -21,4 +21,5 @@
 : INAn, 0xdb C, C,
 : LDrn, swap 3 lshift 0x06 C, C,
 : LDrr, swap 3 lshift or 0x40 or C,
+: LDddnn, swap 4 lshift 0x01 or C, splitb C, C,
 

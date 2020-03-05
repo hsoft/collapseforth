@@ -12,3 +12,6 @@ unsigned char emit_bin[] = {
 unsigned char dup_bin[] = { 
   0xe1, 0xe5, 0xe5
  };
+unsigned char here_bin[] = { 
+  0x21, 0xfe, 0x2f, 0xe5
+ };

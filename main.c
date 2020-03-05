@@ -660,7 +660,7 @@ static void iowr_stdio(uint8_t val)
 // Main loop
 static Callable native_funcs[] = {
     bye, dot, execute, define, loadf, store, fetch, storec, fetchc,
-    forget, create, here, current, regr, regw, minus, mult, div_,
+    forget, create, current, regr, regw, minus, mult, div_,
     and_, or_, lshift, rshift, call, dotx, apos, see};
 
 static void call_native(int index)
@@ -699,7 +699,6 @@ static void init_dict()
     nativeentry("C@", i++);
     nativeentry("forget", i++);
     nativeentry("create", i++);
-    nativeentry("here", i++);
     nativeentry("current", i++);
     nativeentry("regr", i++);
     nativeentry("regw", i++);
@@ -718,6 +717,7 @@ static void init_dict()
     z80entry("swap", swap_bin, sizeof(swap_bin));
     z80entry("emit", emit_bin, sizeof(emit_bin));
     z80entry("dup", dup_bin, sizeof(dup_bin));
+    z80entry("here", here_bin, sizeof(here_bin));
 }
 
 int main(int argc, char *argv[])
@@ -727,6 +727,7 @@ int main(int argc, char *argv[])
     m->iowr[STDIO_PORT] = iowr_stdio;
     m->cpu.R1.wr.SP = 0xffff;
     writew(HERE_ADDR, DICT_ADDR);
+    writew(CURRENT_ADDR, 0);
     init_dict();
     running = 1;
     init_core_defs();
