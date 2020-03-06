@@ -30,8 +30,17 @@ Structure
 // See *variables* section in dictionary.txt for meaning.
 #define HERE_ADDR 0x2ffe
 #define CURRENT_ADDR 0x2ffc
+// Offset where we place our bitwise flags
+#define FLAGS_ADDR 0x2ffb
+// When reading a word, we place the last read WS in this address so that we
+// can properly detect newlines
+#define LASTWS_ADDR 0x2ffa
+
 // Offset where we place currently read word
 #define CURWORD_ADDR 0x2f00
+
+// Whether the parsing of the current line has been aborted
+#define FLAG_ABORTED 0
 
 // Z80 Ports
 #define STDIO_PORT 0x00
@@ -71,8 +80,6 @@ typedef struct {
 
 // Whether we should continue running the program
 static bool running = true;
-// Whether the parsing of the current line has been aborted
-static bool aborted = false;
 // Current stream being read.
 FILE *curstream;
 
@@ -98,6 +105,16 @@ static void writew(uint16_t offset, uint16_t dest)
 {
     m->mem[offset] = dest & 0xff;
     m->mem[offset+1] = dest >> 8;
+}
+
+static bool _aborted()
+{
+    return m->mem[FLAGS_ADDR] & (1 << FLAG_ABORTED);
+}
+
+static void _unabort()
+{
+    m->mem[FLAGS_ADDR] &= ~(1 << FLAG_ABORTED);
 }
 
 static void readentry(DictionaryEntry *de, uint16_t offset)
@@ -184,6 +201,15 @@ static void writeheap(HeapItem *hi)
     writew(HERE_ADDR, nextoffset);
 }
 
+static void error(char *msg)
+{
+    if (msg != NULL) {
+        fprintf(stderr, "%s\n", msg);
+    }
+    m->mem[FLAGS_ADDR] |= (1 << FLAG_ABORTED);
+    return;
+}
+
 static void push(uint16_t x)
 {
     m->cpu.R1.wr.SP -= 2;
@@ -193,8 +219,7 @@ static void push(uint16_t x)
 static uint16_t pop()
 {
     if (m->cpu.R1.wr.SP == 0xffff) {
-        aborted = 1;
-        fprintf(stderr, "Stack underflow\n");
+        error("Stack underflow");
         return 0;
     }
     uint16_t r = readw(m->cpu.R1.wr.SP);
@@ -214,7 +239,7 @@ static char* readword()
     *s = '\0';
     while (1) {
         c = readc();
-        if (c == EOF) {
+        if ((c == EOF) || (c == '\n')) {
             return NULL;
         }
         if (c > ' ') break;
@@ -225,6 +250,7 @@ static char* readword()
         c = readc();
         if ((c == EOF) || (c <= ' ')) break;
     }
+    m->mem[LASTWS_ADDR] = c;
     *s = '\0';
     return &m->mem[CURWORD_ADDR];
 }
@@ -258,7 +284,7 @@ static void compile(HeapItem *hi, char *word)
         } else {
             // not a number
             fprintf(stderr, "What is %s?\n", word);
-            aborted = 1;
+            error(NULL);
         }
     }
 }
@@ -277,19 +303,12 @@ static HeapItemType execstep(HeapItem *hi)
     return hi->type;
 }
 
-static void error(char *msg)
-{
-    fprintf(stderr, "%s\n", msg);
-    aborted = 1;
-    return;
-}
-
 // Not static because it's used in core_forth.c
 void interpret_line(char *line)
 {
     FILE *oldstream = curstream;
     curstream = fmemopen(line, strlen(line), "r");
-    aborted = 0;
+    _unabort();
     while (interpret());
     fclose(curstream);
     curstream = oldstream;
@@ -298,7 +317,7 @@ void interpret_line(char *line)
 // Callable
 static void execute() {
     int offset = pop();
-    if (aborted) return;
+    if (_aborted()) return;
     DictionaryEntry de;
     readentry(&de, offset);
     switch (de.type) {
@@ -331,26 +350,25 @@ static bool interpret() {
     }
     HeapItem hi;
     compile(&hi, word);
-    return !aborted && (execstep(&hi) != TYPE_STOP) && running;
+    return !_aborted() && (execstep(&hi) != TYPE_STOP);
 }
 
 static void bye()
 {
     running = false;
-    aborted = true;
 }
 
 static void dot()
 {
     uint16_t num = pop();
-    if (aborted) return;
+    if (_aborted()) return;
     printf("%d", num);
 }
 
 static void dotx()
 {
     uint16_t num = pop();
-    if (aborted) return;
+    if (_aborted()) return;
     printf("%02x", num);
 }
 
@@ -368,7 +386,7 @@ static void define()
     while ((*word) && (*word != ';')) {
         compile(&hi, word);
         writeheap(&hi);
-        if (aborted) {
+        if (_aborted()) {
             // Something went wrong, let's rollback on new entry
             writew(CURRENT_ADDR, de.prev);
             writew(HERE_ADDR, de.offset);
@@ -398,7 +416,7 @@ static void loadf()
         curstream = oldstream;
         return;
     }
-    aborted = 0;
+    _unabort();
     while (interpret());
     fclose(curstream);
     curstream = oldstream;
@@ -692,9 +710,9 @@ int main(int argc, char *argv[])
     }
     char inputbuf[0x200];
     while (running) {
-        aborted = false;
-        while (interpret());
-        if (!aborted) {
+        _unabort();
+        while (interpret() && running && m->mem[LASTWS_ADDR] != '\n');
+        if (running && !_aborted()) {
             printf(" ok\n");
         }
     }
