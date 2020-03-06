@@ -14,6 +14,7 @@
 : RET, 0xc9 C,
 : HALT, 0x76 C,
 : INCr, 3 lshift 0x04 or C,
+: INCss, 4 lshift 0x03 or C,
 : PUSHqq, 4 lshift 0xc5 or C,
 : POPqq, 4 lshift 0xc1 or C,
 : ADDHLss, 4 lshift 0x09 or C,

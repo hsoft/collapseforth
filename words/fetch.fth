@@ -1,4 +1,5 @@
 HL POPqq,
-D 0 LDrn,
 E LDr(HL),
+HL INCss,
+D LDr(HL),
 DE PUSHqq,

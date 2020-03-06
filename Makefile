@@ -1,6 +1,6 @@
 TARGET = forth
 OBJS = main.o core_forth.o emul.o libz80/libz80.o
-ASMWORDS = plus swap emit dup here current storec fetchc
+ASMWORDS = plus swap emit dup here current storec fetchc store fetch
 ASMWORDSRC = ${ASMWORDS:%=words/%.fth}
 
 .PHONY: all
