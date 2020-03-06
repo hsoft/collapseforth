@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdint.h>
+#include <stdbool.h>
 #include <string.h>
 #include "emul.h"
 #include "core.h"
@@ -29,6 +30,8 @@ Structure
 // See *variables* section in dictionary.txt for meaning.
 #define HERE_ADDR 0x2ffe
 #define CURRENT_ADDR 0x2ffc
+// Offset where we place currently read word
+#define CURWORD_ADDR 0x2f00
 
 // Z80 Ports
 #define STDIO_PORT 0x00
@@ -66,17 +69,18 @@ typedef struct {
     uint16_t arg; // see EntryType comments.
 } DictionaryEntry;
 
-static char *curline, *lineptr;
 // Whether we should continue running the program
-static int running = 1;
+static bool running = true;
 // Whether the parsing of the current line has been aborted
-static int aborted = 0;
+static bool aborted = false;
+// Current stream being read.
+FILE *curstream;
 
 static Machine *m;
 
 // Foward declarations
 static void execute();
-static int interpret();
+static bool interpret();
 static void call_native(int index);
 static void call();
 
@@ -198,36 +202,37 @@ static uint16_t pop()
     return r;
 }
 
-static char* readws()
+static int readc()
 {
-    // skip extra whitespace.
-    while ((*lineptr > 0) && (*lineptr <= ' ')) {
-        lineptr++;
-    }
-    return lineptr;
+    return fgetc(curstream);
 }
 
 static char* readword()
 {
-    char *s = readws();
+    int c;
+    char *s = &m->mem[CURWORD_ADDR];
+    *s = '\0';
     while (1) {
-        if (*lineptr == '\0') {
-            break;
+        c = readc();
+        if (c == EOF) {
+            return NULL;
         }
-        if (*lineptr <= ' ') {
-            *lineptr = 0;
-            lineptr++;
-            break;
-        }
-        lineptr++;
+        if (c > ' ') break;
     }
-    return s;
+    while (1) {
+        *s = c;
+        s++;
+        c = readc();
+        if ((c == EOF) || (c <= ' ')) break;
+    }
+    *s = '\0';
+    return &m->mem[CURWORD_ADDR];
 }
 
 static void compile(HeapItem *hi, char *word)
 {
     hi->type = TYPE_STOP;
-    if (*word == '\0') { // EOL
+    if ((word == NULL) || (*word == '\0')) { // EOL
         return;
     }
     DictionaryEntry de = find(word);
@@ -246,7 +251,7 @@ static void compile(HeapItem *hi, char *word)
             // Try decimal
             num = strtol(word, &endptr, 10);
         }
-        if ((endptr > word) && ((endptr == lineptr) || (endptr == lineptr-1))) {
+        if ((endptr > word) && (*endptr < ' ')) {
             // whole word read, this means it was a number, we're good.
             hi->type = TYPE_NUM;
             hi->arg = num;
@@ -280,18 +285,14 @@ static void error(char *msg)
 }
 
 // Not static because it's used in core_forth.c
-void interpret_line(const char *line)
+void interpret_line(char *line)
 {
-    char buf[0x200];
-    char *oldline = curline;
-    char *oldptr = lineptr;
-    strcpy(buf, line);
-    curline = buf;
-    lineptr = curline;
+    FILE *oldstream = curstream;
+    curstream = fmemopen(line, strlen(line), "r");
     aborted = 0;
     while (interpret());
-    curline = oldline;
-    lineptr = oldptr;
+    fclose(curstream);
+    curstream = oldstream;
 }
 
 // Callable
@@ -323,17 +324,20 @@ static void execute() {
 }
 
 // Returns true if we still have words to interpret.
-static int interpret() {
+static bool interpret() {
     char *word = readword();
+    if (word == NULL) {
+        return false;
+    }
     HeapItem hi;
     compile(&hi, word);
-    return running && !aborted && execstep(&hi) != TYPE_STOP;
+    return !aborted && (execstep(&hi) != TYPE_STOP) && running;
 }
 
 static void bye()
 {
-    running = 0;
-    aborted = 1;
+    running = false;
+    aborted = true;
 }
 
 static void dot()
@@ -387,17 +391,17 @@ static void loadf()
         error("Missing filename");
         return;
     }
-    FILE *fp = fopen(fname, "r");
-    if (!fp) {
+    FILE *oldstream = curstream;
+    curstream = fopen(fname, "r");
+    if (!curstream) {
         error("Can't open file");
+        curstream = oldstream;
         return;
     }
-
-    while ((read = getline(&line, &len, fp)) != -1) {
-        interpret_line(line);
-    }
-    free(line);
-    fclose(fp);
+    aborted = 0;
+    while (interpret());
+    fclose(curstream);
+    curstream = oldstream;
 }
 
 static void forget()
@@ -669,6 +673,7 @@ static void init_dict()
 
 int main(int argc, char *argv[])
 {
+    curstream = stdin;
     m = emul_init();
     m->iord[STDIO_PORT] = iord_stdio;
     m->iowr[STDIO_PORT] = iowr_stdio;
@@ -676,7 +681,7 @@ int main(int argc, char *argv[])
     writew(HERE_ADDR, DICT_ADDR);
     writew(CURRENT_ADDR, 0);
     init_dict();
-    running = 1;
+    running = true;
     init_core_defs();
     if (argc > 1) {
         // We have arguments. Interpret then and exit
@@ -687,10 +692,7 @@ int main(int argc, char *argv[])
     }
     char inputbuf[0x200];
     while (running) {
-        aborted = 0;
-        curline = fgets(inputbuf, 0x200, stdin);
-        if (curline == NULL) break;
-        lineptr = curline;
+        aborted = false;
         while (interpret());
         if (!aborted) {
             printf(" ok\n");
