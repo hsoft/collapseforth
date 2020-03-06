@@ -12,7 +12,9 @@ void init_core_defs()
         ": ? @ . ;",
         ": , here @ ! 2 allot ;",
         ": C, here @ C! 1 allot ;",
-        ": splitb dup 8 rshift swap 0xff and ;"
+        ": splitb dup 8 rshift swap 0xff and ;",
+        ": +! dup rot rot @ + swap ! ;",
+        ": +1! 1 swap +! ;",
     };
     for (int i=0; i<(sizeof(lines)/sizeof(char*)); i++) {
         interpret_line(lines[i]);

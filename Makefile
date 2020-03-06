@@ -1,16 +1,16 @@
 TARGET = forth
 OBJS = main.o core_forth.o emul.o libz80/libz80.o
-ASMWORDS = plus swap emit dup here current storec fetchc store fetch
-ASMWORDSRC = ${ASMWORDS:%=words/%.fth}
+ASMPARTS = plus swap emit dup here current storec fetchc store fetch over rot
+ASMPARTSSRC = ${ASMPARTS:%=z80/%.fth}
 
 .PHONY: all
 all: $(TARGET)
 
 .PHONY: bootstrap
-bootstrap: | $(ASMWORDSRC)
-	./fth2c.sh $(ASMWORDSRC) > words-bin.h
+bootstrap: | $(ASMPARTSSRC)
+	./fth2c.sh $(ASMPARTSSRC) > z80-bin.h
 
-$(TARGET): $(OBJS) words-bin.h
+$(TARGET): $(OBJS) z80-bin.h
 	$(CC) $(LDFLAGS) -o $@ $(OBJS)
 
 libz80/libz80.o: libz80/z80.c

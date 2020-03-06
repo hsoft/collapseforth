@@ -5,7 +5,7 @@
 #include <string.h>
 #include "emul.h"
 #include "core.h"
-#include "words-bin.h"
+#include "z80-bin.h"
 
 #define NAME_LEN 8
 /* About dictionary
@@ -39,8 +39,9 @@ Structure
 // Offset where we place currently read word
 #define CURWORD_ADDR 0x2f00
 
-// Whether the parsing of the current line has been aborted
-#define FLAG_ABORTED 0
+// Whether the parsing of the current line has been aborted and that we need to
+// return to the interpreter
+#define FLAG_QUITTING 0
 
 // Z80 Ports
 #define STDIO_PORT 0x00
@@ -109,12 +110,12 @@ static void writew(uint16_t offset, uint16_t dest)
 
 static bool _aborted()
 {
-    return m->mem[FLAGS_ADDR] & (1 << FLAG_ABORTED);
+    return m->mem[FLAGS_ADDR] & (1 << FLAG_QUITTING);
 }
 
-static void _unabort()
+static void _unquit()
 {
-    m->mem[FLAGS_ADDR] &= ~(1 << FLAG_ABORTED);
+    m->mem[FLAGS_ADDR] &= ~(1 << FLAG_QUITTING);
 }
 
 static void readentry(DictionaryEntry *de, uint16_t offset)
@@ -206,7 +207,7 @@ static void error(char *msg)
     if (msg != NULL) {
         fprintf(stderr, "%s\n", msg);
     }
-    m->mem[FLAGS_ADDR] |= (1 << FLAG_ABORTED);
+    m->mem[FLAGS_ADDR] |= (1 << FLAG_QUITTING);
     return;
 }
 
@@ -308,7 +309,7 @@ void interpret_line(char *line)
 {
     FILE *oldstream = curstream;
     curstream = fmemopen(line, strlen(line), "r");
-    _unabort();
+    _unquit();
     while (interpret());
     fclose(curstream);
     curstream = oldstream;
@@ -416,7 +417,7 @@ static void loadf()
         curstream = oldstream;
         return;
     }
-    _unabort();
+    _unquit();
     while (interpret());
     fclose(curstream);
     curstream = oldstream;
@@ -687,6 +688,8 @@ static void init_dict()
     z80entry("C@", fetchc_bin, sizeof(fetchc_bin));
     z80entry("!", store_bin, sizeof(store_bin));
     z80entry("@", fetch_bin, sizeof(fetch_bin));
+    z80entry("over", over_bin, sizeof(over_bin));
+    z80entry("rot", rot_bin, sizeof(rot_bin));
 }
 
 int main(int argc, char *argv[])
@@ -710,7 +713,7 @@ int main(int argc, char *argv[])
     }
     char inputbuf[0x200];
     while (running) {
-        _unabort();
+        _unquit();
         while (interpret() && running && m->mem[LASTWS_ADDR] != '\n');
         if (running && !_aborted()) {
             printf(" ok\n");

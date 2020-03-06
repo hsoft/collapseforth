@@ -38,9 +38,11 @@ forget x        ( -- )          Remove latest entry named x from dict.
 loadf fname     ( -- )          Reads file fname and interprets its contents as
                                 if it was typed directly in the interpreter.
 lshift          ( x y -- z )    left shift of x by y places => z
+over            ( x y -- x y x )
 regr r          ( -- n)         Put value of register r in n. r can be a single
                                 register name (A, B, C) or a pair (BC, DE).
 regw r          ( n -- )        Put n in register r.
+rot             ( x y z -- y z x )
 rshift          ( x y -- z )    right shift of x by y places => z
 see             ( a -- )        Print debug info about entry at addr a.
 
@@ -53,6 +55,8 @@ variable x      ( -- )          Creates a new word x pointing to a 2 bytes cell.
 C,              ( n -- )        Grow latest entry by 1 byte and set that byte to
                                 value n.
 splitb          ( n -- h l )    Split number n into hish and low bytes.
++!              ( n a -- )      Add n to cell at addr a.
++1!             ( a -- )        Add 1 to cell at addr a.
 
 *** zasm (in zasm.fth) ***
 
