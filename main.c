@@ -38,13 +38,11 @@ typedef void (*Callable) ();
 typedef enum {
     // Entry is a compile list of words. arg points to address in heap.
     TYPE_COMPILED = 0,
-    // Entry links to native code. arg is an index of func to call in
-    // native_funcs array.
+    // Entry links to native code. If arg < 0x20, it's an index in native_funcs
+    // Array. Otherwise, it's a code offset to call in z80.
     TYPE_NATIVE = 1,
     // Entry is a cell, arg holds cell value.
     TYPE_CELL = 2,
-    // Entry holds z80 binary code.
-    TYPE_Z80BIN = 3,
 } EntryType;
 
 typedef enum {
@@ -311,14 +309,15 @@ static void execute() {
             }
             break;
         case TYPE_NATIVE:
-            call_native(de.arg);
+            if (de.arg < 0x20) {
+                call_native(de.arg);
+            } else {
+                push(offset+ENTRY_FIELD_DATA);
+                call();
+            }
             break;
         case TYPE_CELL:
             push(offset+ENTRY_FIELD_DATA);
-            break;
-        case TYPE_Z80BIN:
-            push(offset+ENTRY_FIELD_DATA);
-            call();
             break;
     }
 }
@@ -622,7 +621,7 @@ static void nativeentry(char *name, int index)
 
 static void z80entry(char *name, unsigned char* bin, uint16_t binlen)
 {
-    DictionaryEntry de = _create(name, TYPE_Z80BIN, binlen+1);
+    DictionaryEntry de = _create(name, TYPE_NATIVE, binlen+1);
     for (int i=0; i<binlen; i++) {
         m->mem[de.offset+ENTRY_FIELD_DATA+i] = bin[i];
     }
