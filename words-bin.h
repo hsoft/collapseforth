@@ -18,3 +18,9 @@ unsigned char here_bin[] = {
 unsigned char current_bin[] = { 
   0x21, 0xfc, 0x2f, 0xe5
  };
+unsigned char storec_bin[] = { 
+  0xe1, 0xd1, 0x73
+ };
+unsigned char fetchc_bin[] = { 
+  0xe1, 0x16, 0x00, 0x5e, 0xd5
+ };

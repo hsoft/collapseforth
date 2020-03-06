@@ -19,7 +19,9 @@
 : ADDHLss, 4 lshift 0x09 or C,
 : OUTAn, 0xd3 C, C,
 : INAn, 0xdb C, C,
-: LDrn, swap 3 lshift 0x06 C, C,
+: LDrn, swap 3 lshift 0x06 or C, C,
 : LDrr, swap 3 lshift or 0x40 or C,
 : LDddnn, swap 4 lshift 0x01 or C, splitb C, C,
+: LDr(HL), 3 lshift 0x46 or C,
+: LD(HL)r, 0x70 or C,
 

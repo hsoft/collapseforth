@@ -414,19 +414,6 @@ static void fetch()
     push(readw(addr));
 }
 
-static void storec()
-{
-    int addr = pop();
-    int val = pop();
-    m->mem[addr] = val & 0xff;
-}
-
-static void fetchc()
-{
-    int addr = pop();
-    push(m->mem[addr]);
-}
-
 static void forget()
 {
     char *word = readword();
@@ -631,7 +618,7 @@ static void iowr_stdio(uint8_t val)
 
 // Main loop
 static Callable native_funcs[] = {
-    bye, dot, execute, define, loadf, store, fetch, storec, fetchc,
+    bye, dot, execute, define, loadf, store, fetch,
     forget, create, regr, regw, minus, mult, div_,
     and_, or_, lshift, rshift, call, dotx};
 
@@ -667,8 +654,6 @@ static void init_dict()
     nativeentry("loadf", i++);
     nativeentry("!", i++);
     nativeentry("@", i++);
-    nativeentry("C!", i++);
-    nativeentry("C@", i++);
     nativeentry("forget", i++);
     nativeentry("create", i++);
     nativeentry("regr", i++);
@@ -690,6 +675,8 @@ static void init_dict()
     z80entry("dup", dup_bin, sizeof(dup_bin));
     z80entry("here", here_bin, sizeof(here_bin));
     z80entry("current", current_bin, sizeof(current_bin));
+    z80entry("C!", storec_bin, sizeof(storec_bin));
+    z80entry("C@", fetchc_bin, sizeof(fetchc_bin));
 }
 
 int main(int argc, char *argv[])
