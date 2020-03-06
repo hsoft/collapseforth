@@ -558,7 +558,9 @@ static void rshift()
 static void call()
 {
     m->cpu.PC = pop();
-    emul_loop();
+    // Run until we encounter a RET (0xc9)
+    m->cpu.halted = 0;
+    while ((m->mem[m->cpu.PC] != 0xc9) && emul_step());
 }
 
 static void apos()
@@ -625,8 +627,8 @@ static void z80entry(char *name, unsigned char* bin, uint16_t binlen)
     for (int i=0; i<binlen; i++) {
         m->mem[de.offset+ENTRY_FIELD_DATA+i] = bin[i];
     }
-    // End with a HALT (0x76)
-    m->mem[de.offset+ENTRY_FIELD_DATA+binlen] = 0x76;
+    // End with a RET (0xc9)
+    m->mem[de.offset+ENTRY_FIELD_DATA+binlen] = 0xc9;
 }
 
 static void init_dict()
