@@ -1,5 +1,19 @@
 # Collapse OS (Forth reboot)
 
+**Experiment halted:** *This approach here of starting with a Forth implemented
+in C and gradually "bootstrap" it into z80 to as a basis for a new Collapse OS
+is a dead end. I have an incomplete Forth (no meta-programming (DOES>,
+IMMEDIATE, etc.)) that I intentionally keep that way to facilitate my transition
+to z80, but that crippling makes my job a lot harder. It's not worth it (things
+were getting crazy when the need for forward labels arose in my routines).*
+
+*That being said, this allowed me to get my hands dirty with Forth
+and I like how it twists the mind. I learned that I was much better starting
+with a solid dict structure, directly in z80. Therefore, instead of a Forth
+reboot, I'll begin by adding a Forth to Collapse OS without rebooting it. Once
+this first step is done, I expect new improvement opportunities will present
+themselves.*
+
 When I started Collapse OS, I was very excited to build tools that were
 self-hosting with so little ressources. I furiously wrote a lot of z80 assembly
 and was very happy with the result (and still am).
