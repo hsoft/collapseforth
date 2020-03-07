@@ -33,4 +33,6 @@ variable ZOUT
 : SETbr, 0xcb Z, swap 3 lshift or 0xc0 or Z, ;
 : RESbr, 0xcb Z, swap 3 lshift or 0x80 or Z, ;
 : CALLnn, 0xcd Z, splitb Z, Z, ;
+: JPnn, 0xc3 Z, splitb Z, Z, ;
+: JRe, 0x18 Z, 2 - Z, ;
 

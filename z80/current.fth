@@ -1,2 +1,2 @@
-HL 0x2ffc LDddnn,
+getcurrent @ JPnn,
 HL PUSHqq,

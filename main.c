@@ -245,7 +245,7 @@ static char* readword()
     *s = '\0';
     while (1) {
         c = readc();
-        if ((c == EOF) || (c == '\n')) {
+        if (c == EOF) {
             return NULL;
         }
         if (c > ' ') break;
@@ -743,8 +743,13 @@ int main(int argc, char *argv[])
     char inputbuf[0x200];
     while (running) {
         _unquit();
-        while (interpret() && running && m->mem[LASTWS_ADDR] != '\n');
-        if (running && !_quitting()) {
+        while (interpret() && running && !_quitting() && m->mem[LASTWS_ADDR] != '\n');
+        if (_quitting()) { // exhaust the current line
+            int c = m->mem[LASTWS_ADDR];
+            while (c != '\n') {
+                c = readc();
+            }
+        } else if (running) {
             printf(" ok\n");
         }
     }
