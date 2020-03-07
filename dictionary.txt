@@ -22,6 +22,7 @@ current         Memory offset pointing to the last entry of the dictionary.
 !               ( x a -- )      store value x in cell at address a.
 @               ( a -- x )      fetch value x from cell at address a.
 ' w             ( -- a )        Find word w and push entry addr.
+abort                           Clear stack and quit
 allot           ( n -- )        Increase "here" variable by n.
 bye             ( -- )          Quits interpreter.
 C!              ( x a -- )      store byte value x in cell at address a.
@@ -32,6 +33,7 @@ call            ( a -- )        Set PC to a and execute code until the CPU has
                                 into z80, a RET will return from that call.
 create x        ( -- )          Create entry named x, header only
 dup             ( n -- n n )    Duplicates TOS.
+drop            ( x -- )        Drop TOS.
 emit            ( c -- )        Emit character c to console.
 execute         ( hi -- )       Execute from heap starting at offset hi.
 forget x        ( -- )          Remove latest entry named x from dict.
@@ -39,6 +41,10 @@ loadf fname     ( -- )          Reads file fname and interprets its contents as
                                 if it was typed directly in the interpreter.
 lshift          ( x y -- z )    left shift of x by y places => z
 over            ( x y -- x y x )
+quit            ( -- )          Stop processing current stream and return to
+                                interpreter (in a non-interactive context, it
+                                means quitting the program, otherwise, it means
+                                returning to prompt).
 regr r          ( -- n)         Put value of register r in n. r can be a single
                                 register name (A, B, C) or a pair (BC, DE).
 regw r          ( n -- )        Put n in register r.
@@ -74,6 +80,11 @@ example, "LD A, 42" is typed "A 42 LDrn,".
 
 Special arguments: Some upcodes have some kind of "constant" arguments and map
 to irregular upcodes. For example "ADD HL, ss". These have specifics words. For
-example, "ADD HL, DE" is invoked as "DE ADDHLss,"
+example, "ADD HL, DE" is invoked as "DE ADDHLss,".
+
+In some cases, however, "(HL)" argument, while it's a special case in the
+specifications, is actually the same upcode as the "r" form, but with a
+0b110 (0x6) hardcoded in it. In this case, The argument "(HL)" is used as a
+regular "r" argument. Example "set 0, (hl)" --> "0 (HL) SETbr,".
 
 Not all upcodes are implemented yet. Look in zasm.fth.

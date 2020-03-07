@@ -2,4 +2,6 @@
 
 # Usage ./zasm.sh foo.asm
 
-./forth ": C, emit ; loadf zasm.fth loadf $1"
+# We load routines.fth in drop mode to have label variables set in our dict.
+
+./forth "loadf zasm.fth ' drop ZOUT ! loadf z80/routines.fth ' emit ZOUT ! loadf $1"

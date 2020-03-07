@@ -39,6 +39,9 @@ Structure
 // Offset where we place currently read word
 #define CURWORD_ADDR 0x2f00
 
+// Offset where binary from z80/routines.fth are placed.
+#define ROUTINES_ADDR 0x1000
+
 // Whether the parsing of the current line has been aborted and that we need to
 // return to the interpreter
 #define FLAG_QUITTING 0
@@ -88,7 +91,9 @@ static Machine *m;
 
 // Foward declarations
 static void execute();
+static bool _interpret(char *word);
 static bool interpret();
+void interpret_line(char *line);
 static void call_native(int index);
 static void call();
 
@@ -108,7 +113,7 @@ static void writew(uint16_t offset, uint16_t dest)
     m->mem[offset+1] = dest >> 8;
 }
 
-static bool _aborted()
+static bool _quitting()
 {
     return m->mem[FLAGS_ADDR] & (1 << FLAG_QUITTING);
 }
@@ -207,7 +212,7 @@ static void error(char *msg)
     if (msg != NULL) {
         fprintf(stderr, "%s\n", msg);
     }
-    m->mem[FLAGS_ADDR] |= (1 << FLAG_QUITTING);
+    _interpret("abort");
     return;
 }
 
@@ -292,6 +297,7 @@ static void compile(HeapItem *hi, char *word)
 
 static HeapItemType execstep(HeapItem *hi)
 {
+    if (_quitting()) return TYPE_STOP;
     switch (hi->type) {
         case TYPE_NUM:
             push(hi->arg);
@@ -318,7 +324,7 @@ void interpret_line(char *line)
 // Callable
 static void execute() {
     int offset = pop();
-    if (_aborted()) return;
+    if (_quitting()) return;
     DictionaryEntry de;
     readentry(&de, offset);
     switch (de.type) {
@@ -343,15 +349,21 @@ static void execute() {
     }
 }
 
+static bool _interpret(char *word)
+{
+    HeapItem hi;
+    compile(&hi, word);
+    return execstep(&hi) != TYPE_STOP;
+}
+
 // Returns true if we still have words to interpret.
 static bool interpret() {
+    if (_quitting()) return false;
     char *word = readword();
     if (word == NULL) {
         return false;
     }
-    HeapItem hi;
-    compile(&hi, word);
-    return !_aborted() && (execstep(&hi) != TYPE_STOP);
+    return _interpret(word);
 }
 
 static void bye()
@@ -362,14 +374,14 @@ static void bye()
 static void dot()
 {
     uint16_t num = pop();
-    if (_aborted()) return;
+    if (_quitting()) return;
     printf("%d", num);
 }
 
 static void dotx()
 {
     uint16_t num = pop();
-    if (_aborted()) return;
+    if (_quitting()) return;
     printf("%02x", num);
 }
 
@@ -387,7 +399,7 @@ static void define()
     while ((*word) && (*word != ';')) {
         compile(&hi, word);
         writeheap(&hi);
-        if (_aborted()) {
+        if (_quitting()) {
             // Something went wrong, let's rollback on new entry
             writew(CURRENT_ADDR, de.prev);
             writew(HERE_ADDR, de.offset);
@@ -581,9 +593,19 @@ static void rshift()
 static void call()
 {
     m->cpu.PC = pop();
-    // Run until we encounter a RET (0xc9)
+    int levels = 1;
+    // Run until we encounter a RET (0xc9) *and* that SP is at the same level
+    // as when we started.
     m->cpu.halted = 0;
-    while ((m->mem[m->cpu.PC] != 0xc9) && emul_step());
+    while (1) {
+        if (m->mem[m->cpu.PC] == 0xcd) { // CALL
+            levels++;
+        }
+        if (m->mem[m->cpu.PC] == 0xc9) { // RET
+            levels--;
+        }
+        if ((levels == 0) || !emul_step()) break;
+    }
 }
 
 static void apos()
@@ -631,7 +653,7 @@ static void iowr_stdio(uint8_t val)
 static Callable native_funcs[] = {
     bye, dot, execute, define, loadf,
     forget, create, regr, regw, minus, mult, div_,
-    and_, or_, lshift, rshift, call, dotx};
+    and_, or_, lshift, rshift, call, dotx, apos, see};
 
 static void call_native(int index)
 {
@@ -690,6 +712,9 @@ static void init_dict()
     z80entry("@", fetch_bin, sizeof(fetch_bin));
     z80entry("over", over_bin, sizeof(over_bin));
     z80entry("rot", rot_bin, sizeof(rot_bin));
+    z80entry("drop", drop_bin, sizeof(drop_bin));
+    z80entry("quit", quit_bin, sizeof(quit_bin));
+    z80entry("abort", abort_bin, sizeof(abort_bin));
 }
 
 int main(int argc, char *argv[])
@@ -701,6 +726,10 @@ int main(int argc, char *argv[])
     m->cpu.R1.wr.SP = 0xffff;
     writew(HERE_ADDR, DICT_ADDR);
     writew(CURRENT_ADDR, 0);
+    // Copy system routines in memory
+    for (int i=0; i<sizeof(routines_bin); i++) {
+        m->mem[ROUTINES_ADDR+i] = routines_bin[i];
+    }
     init_dict();
     running = true;
     init_core_defs();
@@ -715,7 +744,7 @@ int main(int argc, char *argv[])
     while (running) {
         _unquit();
         while (interpret() && running && m->mem[LASTWS_ADDR] != '\n');
-        if (running && !_aborted()) {
+        if (running && !_quitting()) {
             printf(" ok\n");
         }
     }

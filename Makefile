@@ -1,6 +1,8 @@
 TARGET = forth
 OBJS = main.o core_forth.o emul.o libz80/libz80.o
-ASMPARTS = plus swap emit dup here current storec fetchc store fetch over rot
+ASMPARTS = routines plus swap emit dup here current storec fetchc store fetch \
+	over rot drop quit abort
+
 ASMPARTSSRC = ${ASMPARTS:%=z80/%.fth}
 
 .PHONY: all
